@@ -16,7 +16,13 @@ This script calls: digestVasp.py.
   none.
 
 **Internal constants:**
-  digestVasp: The full path of digestVasp.py
+
+  =================  =====================================================
+  **digestVasp:**    The full path of digestVasp.py
+  **targetdir:**     The target directory to upload to, such as:
+
+                     ``scpuser@cid-dev.hpc.nrel.gov:/data/incoming``
+  =================  =====================================================
 
   The directory containing digestVasp.py must also contain readVasp.py
 
