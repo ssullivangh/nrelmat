@@ -16,10 +16,10 @@ def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
   print '  -buglev     <int>      debug level'
-  print '  -func       <string>   createTable / fillTable'
+  print '  -func       <string>   createTableModel / fillTable'
   print '  -inDigest   <string>   input digest file, created by'
   print '                           digestVasp_a.py.'
-  print '  -wrapid     <string>'
+  print '  -wrapId     <string>'
   print '  -inSpec     <string>   inSpecJsonFile'
   sys.exit(1)
 
@@ -43,16 +43,16 @@ def main():
   **-buglev**      integer      Debug level.  Normally 0.
   **-func**        string       Function.  See below.
   **-inDigest**    string       Input digest file.
-  **-wrapid**      string       The unique id of this upload, created
+  **-wrapId**      string       The unique id of this upload, created
                                 by wrapReceive.py from the uploaded file name.
   **-inSpec**      string       JSON file containing parameters.  See below.
   ==============   =========    ==============================================
 
   **Values for the -func Parameter:**
 
-  **createTable**
+  **createTableModel**
     Drop and create the model table.  In this case the -inDigest
-    and -wrapid parameters can be "none".
+    and -wrapId parameters should be "none".
 
   **fillTable**
     Read the digest file and insert database table rows.
@@ -69,7 +69,6 @@ def main():
   **dbname**             Database database name.
   **dbschema**           Database schema name.
   **dbtablemodel**       Database name of the "model" table.
-  **dbtablecontrib**     Database name of the "contrib" table.
   ===================    ==============================================
 
   **inSpec file example:**::
@@ -81,8 +80,7 @@ def main():
       "dbpswd"         : "x",
       "dbname"         : "cidlada",
       "dbschema"       : "satom",
-      "dbtablemodel"   : "model",
-      "dbtablecontrib" : "contrib"
+      "dbtablemodel"   : "model"
     }
 
   '''
@@ -90,7 +88,7 @@ def main():
   buglev     = None
   func       = None
   inDigest   = None
-  wrapid     = None
+  wrapId     = None
   inSpec = None
 
   if len(sys.argv) % 2 != 1:
@@ -101,41 +99,47 @@ def main():
     if   key == '-buglev': buglev = int( val)
     elif key == '-func': func = val
     elif key == '-inDigest': inDigest = val
-    elif key == '-wrapid': wrapid = val
+    elif key == '-wrapId': wrapId = val
     elif key == '-inSpec': inSpec = val
     else: badparms('unknown key: "%s"' % (key,))
 
   if buglev == None: badparms('parm not specified: -buglev')
   if func == None: badparms('parm not specified: -func')
   if inDigest == None: badparms('parm not specified: -inDigest')
-  if wrapid == None: badparms('parm not specified: -wrapid')
+  if wrapId == None: badparms('parm not specified: -wrapId')
   if inSpec == None: badparms('parm not specified: -inSpec')
+
+  fillDbVasp( buglev, func, inDigest, wrapId, inSpec)
+
+
+#====================================================================
+
+
+
+def fillDbVasp(
+  buglev,
+  func,
+  inDigest,
+  wrapId,
+  inSpec):
 
   with open( inSpec) as fin:
     specMap = json.load( fin)
 
-  inDir    = specMap.get('inDir', None)
-  wkDir    = specMap.get('wkDir', None)
-  logFile  = specMap.get('logFile', None)
   dbhost   = specMap.get('dbhost', None)
   dbport   = specMap.get('dbport', None)
   dbuser   = specMap.get('dbuser', None)
   dbpswd   = specMap.get('dbpswd', None)
   dbname   = specMap.get('dbname', None)
   dbschema = specMap.get('dbschema', None)
-  dbtablecontrib = specMap.get('dbtablecontrib', None)
   dbtablemodel   = specMap.get('dbtablemodel', None)
 
-  if inDir == None:    badparms('inSpec name not found: inDir')
-  if wkDir == None:    badparms('inSpec name not found: wkDir')
-  if logFile == None:  badparms('inSpec name not found: logFile')
   if dbhost == None:   badparms('inSpec name not found: dbhost')
   if dbport == None:   badparms('inSpec name not found: dbport')
   if dbuser == None:   badparms('inSpec name not found: dbuser')
   if dbpswd == None:   badparms('inSpec name not found: dbpswd')
   if dbname == None:   badparms('inSpec name not found: dbname')
   if dbschema == None: badparms('inSpec name not found: dbschema')
-  if dbtablecontrib == None: badparms('inSpec name not found: dbtablecontrib')
   if dbtablemodel   == None: badparms('inSpec name not found: dbtablemodel')
   dbport = int( dbport)
 
@@ -166,9 +170,10 @@ def main():
     cursor = conn.cursor()
     cursor.execute('set search_path to %s', (dbschema,))
 
-    if func == 'createTable': createTable( buglev, conn, cursor, dbtablemodel)
+    if func == 'createTableModel':
+      createTableModel( buglev, conn, cursor, dbtablemodel)
     elif func == 'fillTable':
-      fillTable( buglev, inDigest, conn, cursor, wrapid, dbtablemodel)
+      fillTable( buglev, inDigest, conn, cursor, wrapId, dbtablemodel)
     else: throwerr('unknown func: "%s"' % (func,))
   finally:
     if cursor != None: cursor.close()
@@ -178,7 +183,7 @@ def main():
 #====================================================================
 
 
-def createTable(
+def createTableModel(
   buglev,
   conn,
   cursor,
@@ -298,7 +303,7 @@ def fillTable(
   inDigest,
   conn,
   cursor,
-  wrapid,
+  wrapId,
   dbtablemodel):
 
   if not os.path.isfile(inDigest):
@@ -356,7 +361,7 @@ def fillTable(
           fileNames, fileSizes)
         values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
       ''',
-      ( wrapid,
+      ( wrapId,
         getattr( resObj, 'realPath', None),
         getattr( resObj, 'icsdNum', None),
         getattr( resObj, 'magType', None),

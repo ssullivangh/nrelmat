@@ -7,7 +7,8 @@
 # Use scp to upload the tar file to a wrapReceive.py process running
 # on the database server.
 
-digestVasp=/home/ssulliva/stuff/ssvasp/digestVasp.py
+digestVasp=/home/ssulliva/stuff/cidvasp/digestVasp.py
+targetDir=scpuser@cid-dev.hpc.nrel.gov:/data/incoming
 
 set -e
 
@@ -72,8 +73,7 @@ read -p '===== Press enter to begin uploading.'
 /bin/rm -f $uploadDir/$uui.flag
 touch $uploadDir/$uui.flag
 
-scp  $uploadDir/$uui.tgz  $uploadDir/$uui.flag \
-  scpuser@cid-dev.hpc.nrel.gov:incoming
+scp  $uploadDir/$uui.tgz  $uploadDir/$uui.flag $targetDir
 
 echo ''
 echo '===== wrapUpload.sh: Thank you.  Your archive was uploaded.'

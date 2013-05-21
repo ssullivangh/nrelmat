@@ -4,6 +4,8 @@ import datetime, json, math, os, re
 import shutil, subprocess, sys, time, traceback
 import psutil
 import psycopg2
+import fillDbVasp
+import augmentDb
 
 
 
@@ -15,7 +17,7 @@ def badparms( msg):
   print 'Parms:'
   print ''
   print '  -buglev     <int>      debug level'
-  print '  -func       <string>   createTable / readIncoming / redoWkDir'
+  print '  -func       <string>   createTableContrib / readIncoming / redoArch'
   print '  -inSpec     <string>   inSpecJsonFile'
   sys.exit(1)
 
@@ -27,9 +29,10 @@ def badparms( msg):
 def main():
   '''
   This is the receiver for model data uploaded by wrapUpload.sh.
+  It updates the model and contrib tables.
   The function is determined by the **-func** parameter; see below.
 
-  This function calls fillDbVasp.py.
+  This function calls fillDbVasp.py and augmentDb.py.
 
   Command line parameters:
 
@@ -43,20 +46,22 @@ def main():
 
   **Values for the -func Parameter:**
 
-  **createTable**
+  **createTableContrib**
     Drop and recreate the contrib table.
 
   **readIncoming**
     Monitor the inDir for new additions.
-    When one is found, move it to wkDir, untar it,
+    When one is found, move it to archDir, untar it,
     and run fillDbVasp.py on the digest.pkl file
     to insert the results into the model table.
     Also insert a row into the contrib table for this wrapId.
 
-  **redoWkDir**
-    Re-process all the subDirs found in wkDir.
+  **redoArch**
+    Re-process all the subDirs found in archDir.
     This is useful when someone changes the database tables, for example
-    by adding an new column.  Then one can use createTable and redoWkDir
+    by adding an new column.  Then one can use
+    fillDbTable.py:createTableModel,
+    and our createTableContrib and redoArch
     to recreate the tables with the new column.
 
   **inSpec File Parameters:**
@@ -64,9 +69,8 @@ def main():
   ===================    ==============================================
   Parameter              Description
   ===================    ==============================================
-  **fillDbVaspPath**     Full path of fillDbVasp.py
   **inDir**              Input dir for uploaded files.
-  **wkDir**              Dir used for work and archiving.
+  **archDir**            Dir used for work and archiving.
   **logFile**            Log file name.
   **dbhost**             Database hostname.
   **dbport**             Database port number.
@@ -81,9 +85,8 @@ def main():
   **inSpec file example:**::
 
     {
-      "fillDbVaspPath" : "/home/ciduser/ssvasp/fillDbVasp.py",
       "inDir"          : "/home/scpuser/incoming",
-      "wkDir"          : "/home/ciduser/wk",
+      "archDir"        : "/home/ciduser/arch",
       "logFile"        : "wrapReceive.log",
       "dbhost"         : "scctest",
       "dbport"         : "6432",
@@ -119,7 +122,7 @@ def main():
     specMap = json.load( fin)
 
   inDir    = specMap.get('inDir', None)
-  wkDir    = specMap.get('wkDir', None)
+  archDir  = specMap.get('archDir', None)
   logFile  = specMap.get('logFile', None)
   dbhost   = specMap.get('dbhost', None)
   dbport   = specMap.get('dbport', None)
@@ -129,10 +132,9 @@ def main():
   dbschema = specMap.get('dbschema', None)
   dbtablecontrib = specMap.get('dbtablecontrib', None)
   dbtablemodel   = specMap.get('dbtablemodel', None)
-  fillDbVaspPath = specMap.get('fillDbVaspPath', None)
 
   if inDir == None:    badparms('inSpec name not found: inDir')
-  if wkDir == None:    badparms('inSpec name not found: wkDir')
+  if archDir == None:  badparms('inSpec name not found: archDir')
   if logFile == None:  badparms('inSpec name not found: logFile')
   if dbhost == None:   badparms('inSpec name not found: dbhost')
   if dbport == None:   badparms('inSpec name not found: dbport')
@@ -142,7 +144,6 @@ def main():
   if dbschema == None: badparms('inSpec name not found: dbschema')
   if dbtablecontrib == None: badparms('inSpec name not found: dbtablecontrib')
   if dbtablemodel   == None: badparms('inSpec name not found: dbtablemodel')
-  if fillDbVaspPath == None: badparms('inSpec name not found: fillDbVaspPath')
   dbport = int( dbport)
 
 
@@ -150,12 +151,12 @@ def main():
   checkDupProcs()
 
   inDirPath = os.path.abspath( inDir)
-  wkDirPath = os.path.abspath( wkDir)
+  archDirPath = os.path.abspath( archDir)
   logPath = os.path.abspath( logFile)
   if not os.path.isdir( inDirPath):
     throwerr('inDir is not a dir: %s' % (inDirPath,))
-  if not os.path.isdir( wkDirPath):
-    throwerr('wkDir is not a dir: %s' % (wkDirPath,))
+  if not os.path.isdir( archDirPath):
+    throwerr('archDir is not a dir: %s' % (archDirPath,))
   flog = open( logPath, 'a')
   # xxx use flog
 
@@ -163,8 +164,8 @@ def main():
   uuiPattern = r'(arch\.date\.(\d{4}\.\d{2}\.\d{2})\.time\.(\d{2}\.\d{2}\.\d{2})\.userid\.(.*)\.hostname\.(.*)\.digest)'
   flagPattern = uuiPattern + r'\.flag'
 
-  if func == 'createTable':
-    createTable( buglev, dbhost, dbport, dbuser, dbpswd,
+  if func == 'createTableContrib':
+    createTableContrib( buglev, dbhost, dbport, dbuser, dbpswd,
       dbname, dbschema, dbtablecontrib)
 
   elif func == 'readIncoming':
@@ -185,10 +186,10 @@ def main():
           excArgs = None
           try: 
             gatherOne(
-              buglev, inDirPath, wkDirPath,
+              buglev, inDirPath, archDirPath,
               wrapId, dateStg, timeStg, userid, hostname, inSpec,
               dbhost, dbport, dbuser, dbpswd, dbname,
-              dbschema, dbtablecontrib, fillDbVaspPath)
+              dbschema, dbtablecontrib)
           except Exception, exc:
             excArgs = exc.args
             print 'caught: %s' % (excArgs,)
@@ -202,9 +203,9 @@ def main():
 
       time.sleep(10)
 
-  # Re-process the subDirs under wkDir.
-  elif func == 'redoWkDir':
-    fnames = os.listdir( wkDirPath)
+  # Re-process the subDirs under archDir.
+  elif func == 'redoArch':
+    fnames = os.listdir( archDirPath)
     fnames.sort()
     for fname in fnames:
       mat = re.match( uuiPattern, fname)
@@ -215,14 +216,14 @@ def main():
         userid = mat.group(4)
         hostname = mat.group(5)
         if buglev >= 1: print 'main: wrapId: %s' % (wrapId,)
-        subDir = '%s/%s' % (wkDirPath, wrapId,)
+        subDir = '%s/%s' % (archDirPath, wrapId,)
         excArgs = None
         try: 
           processOne(
             buglev, subDir, wrapId, dateStg, timeStg,
             userid, hostname, inSpec,
             dbhost, dbport, dbuser, dbpswd, dbname,
-            dbschema, dbtablecontrib, fillDbVaspPath)
+            dbschema, dbtablecontrib)
         except Exception, exc:
           excArgs = exc.args
           print 'caught: %s' % (excArgs,)
@@ -234,13 +235,15 @@ def main():
           logit('error for %s: %s' % (wrapId, excArgs,))
           throwerr( str(excArgs))
 
+  else: badparms('invalid func')
+
 
 
 
 #====================================================================
 
 
-def createTable(
+def createTableContrib(
   buglev,
   dbhost,
   dbport,
@@ -289,14 +292,14 @@ def createTable(
 
 
 def gatherOne(
-  buglev, inDirPath, wkDirPath,
+  buglev, inDirPath, archDirPath,
   wrapId, dateStg, timeStg, userid, hostname, inSpec,
   dbhost, dbport, dbuser, dbpswd, dbname,
-  dbschema, dbtablecontrib, fillDbVaspPath):
+  dbschema, dbtablecontrib):
 
   if buglev >= 1:
     print 'gatherOne: inDirPath: %s' % (inDirPath,)
-    print 'gatherOne: wkDirPath: %s' % (wkDirPath,)
+    print 'gatherOne: archDirPath: %s' % (archDirPath,)
     print 'gatherOne: wrapId: %s' % (wrapId,)
 
   # Check paths
@@ -307,8 +310,8 @@ def gatherOne(
   if not os.access( flagPathOld, os.R_OK):
     throwerr('cannot read file: %s' % (flagPathOld,))
 
-  # Move x.tgz and x.flag to subDir==wkDir/wrapId
-  subDir = '%s/%s' % (wkDirPath, wrapId,)
+  # Move x.tgz and x.flag to subDir==archDir/wrapId
+  subDir = '%s/%s' % (archDirPath, wrapId,)
   os.mkdir( subDir)
   shutil.copy2( archPathOld, subDir)
   shutil.copy2( flagPathOld, subDir)
@@ -318,7 +321,7 @@ def gatherOne(
   archPathNew = os.path.abspath( '%s/%s.tgz'  % (subDir, wrapId,))
   flagPathNew = os.path.abspath( '%s/%s.flag' % (subDir, wrapId,))
 
-  # Untar wrapId.tgz in subDir==wkDir/wrapId
+  # Untar wrapId.tgz in subDir==archDir/wrapId
 
   proc = subprocess.Popen(
     ['/bin/tar', '-xzf', archPathNew],
@@ -338,7 +341,7 @@ def gatherOne(
     buglev, subDir, wrapId, dateStg, timeStg,
     userid, hostname, inSpec,
     dbhost, dbport, dbuser, dbpswd, dbname,
-    dbschema, dbtablecontrib, fillDbVaspPath)
+    dbschema, dbtablecontrib)
 
 
 
@@ -350,9 +353,9 @@ def processOne(
   buglev, subDir, wrapId, dateStg, timeStg,
   userid, hostname, inSpec,
   dbhost, dbport, dbuser, dbpswd, dbname,
-  dbschema, dbtablecontrib, fillDbVaspPath):
+  dbschema, dbtablecontrib):
 
-  # Get datetime, userid, hostname
+  # Get adate
   adate = datetime.datetime.strptime(
     dateStg + ' ' + timeStg, '%Y.%m.%d %H.%M.%S')
   if buglev >= 1:
@@ -375,34 +378,20 @@ def processOne(
     print 'processOne: numOutcar: %d' % (numOutcar,)
     print 'processOne: desc: "%s"' % (desc,)
 
-  # Process the digest file
+  # Process the digest file and add rows to the model table
   digestPath = '%s/%s' % (subDir, 'digest.pkl',)
   if not os.access( digestPath, os.R_OK):
     throwerr('cannot read file: %s' % (digestPath,))
 
-  proc = subprocess.Popen(
-    [ fillDbVaspPath,
-      '-buglev',   '1',
-      '-func',     'fillTable',
-      '-inDigest', digestPath,
-      '-wrapid',   wrapId,
-      '-inSpec',   os.path.abspath( inSpec),    # db parameters json file
-    ],
-    shell=False,
-    cwd=subDir,
-    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    bufsize=10*1000*1000)
-  (stdout, stderr) = proc.communicate()
-  rc = proc.wait()
-  if buglev >= 1:
-    print 'processOne: fillDbVasp rc: %d' % (rc,)
-    print 'processOne: fillDbVasp stderr: %s' % (stderr,)
-    print 'processOne: fillDbVasp stdout: %s' % (stdout,)
-  if rc != 0:
-    msg = 'fillDbVasp.py failed.  rc: %d\n' % (rc,)
-    msg += '\n===== stdout:\n%s\n' % (stdout,)
-    msg += '\n===== stderr:\n%s\n' % (stderr,)
-    throwerr( msg)
+  fillDbVasp.fillDbVasp(
+    buglev,
+    'fillTable',     # func
+    digestPath,      # inDigest
+    wrapId,
+    inSpec)
+
+  # Fill in additional columns in the model table
+  augmentDb.augmentDb( buglev, wrapId, inSpec)
 
   # Update contrib table
   conn = None

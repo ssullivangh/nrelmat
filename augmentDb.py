@@ -28,27 +28,32 @@ def main():
   This program adds additional information to the model database table.
   The following functions in this file fill the indicated columns
   in the model table.  The columns must have been created previously
-  by fillDbVasp.py (which is called by wrapReceive.py).
+  by the fillDbVasp.py function createTable.
 
   ==============  ===========   ==============================================
   Function        Column        Notes
   ==============  ===========   ==============================================
   addIsminenergy  isminenergy   == true iff finalenergy == min for this ICSD.
-  addChemforms    chemsum       Standard chemical formula, ``"H2 O"``.
+  addChemforms    chemsum       Standard chemical formula: ``"H2 O"``.
   addChemForms    chemform      Structured formula, easier for parsing.
-                                Every token is surrounded by spaces:
+                                Every token is surrounded by spaces, and
+                                single occurance atoms have the explicit
+                                "1" count:
                                 ``" H 2 O 1 "``.
   ==============  ===========   ==============================================
 
 
   Command line parameters:
 
-  =============   =========    ==============================================
-  Parameter       Type         Description
-  =============   =========    ==============================================
-  **-buglev**     integer      Debug level.  Normally 0.
-  **-inSpec**     string       JSON file containing parameters.  See below.
-  =============   =========    ==============================================
+  =============   ===========   ==============================================
+  Parameter       Type          Description
+  =============   ===========   ==============================================
+  **-buglev**     integer       Debug level.  Normally 0.
+  **-wrapId**     string        Either "all" or spec the wrapId
+                                and only process those icsdNums
+                                provided by that wrapId.
+  **-inSpec**     string        JSON file containing parameters.  See below.
+  =============   ===========   ==============================================
 
   **inSpec File Parameters:**
 
@@ -79,6 +84,7 @@ def main():
   '''
 
   buglev     = None
+  wrapId     = None
   inSpec     = None
 
   if len(sys.argv) % 2 != 1:
@@ -87,11 +93,21 @@ def main():
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
     if   key == '-buglev': buglev = int( val)
+    elif key == '-wrapId': wrapId = val
     elif key == '-inSpec': inSpec = val
     else: badparms('unknown key: "%s"' % (key,))
 
   if buglev == None: badparms('parm not specified: -buglev')
+  if wrapId == None: badparms('parm not specified: -wrapId')
   if inSpec == None: badparms('parm not specified: -inSpec')
+
+  augmentDb( buglev, wrapId, inSpec)
+
+
+#====================================================================
+
+
+def augmentDb( buglev, wrapId, inSpec):
 
   with open( inSpec) as fin:
     specMap = json.load( fin)
@@ -115,19 +131,45 @@ def main():
 
   queryCols = ['mident', 'icsdnum', 'finalenergy', 'typenames', 'typenums']
 
-  db_rows = dbQuery( buglev, dbhost, dbport, dbuser, dbpswd,
-    dbname, dbschema, dbtablemodel, queryCols)
+  conn = None
+  cursor = None
+  try:
+    conn = psycopg2.connect(
+      host=dbhost,
+      port=dbport,
+      user=dbuser,
+      password=dbpswd,
+      database=dbname)
+    if buglev >= 1:
+      print 'main: got conn.  dbhost: %s  dbport: %d' % (dbhost, dbport,)
+    cursor = conn.cursor()
+    cursor.execute('set search_path to %s', (dbschema,))
 
-  curCols = list( queryCols)       # shallow copy
+    icsdNums = None
+    if wrapId != 'all':
+      cursor.execute('select distinct icsdnum from model where wrapid = %s',
+        (wrapId,))
+      db_rows = cursor.fetchall()
+      icsdNums = [row[0] for row in db_rows]
 
-  newCols = addIsminenergy( buglev, curCols, db_rows)   # updates db_rows
-  curCols += newCols
+    db_rows = dbQuery(
+      buglev, conn, cursor, dbtablemodel, icsdNums, queryCols)
 
-  newCols = addChemforms( buglev, curCols, db_rows)   # updates db_rows
-  curCols += newCols
+    curCols = list( queryCols)       # shallow copy
 
-  dbUpdate( buglev, dbhost, dbport, dbuser, dbpswd,
-    dbname, dbschema, dbtablemodel, queryCols, curCols, db_rows)
+    newCols = addIsminenergy( buglev, curCols, db_rows)   # updates db_rows
+    curCols += newCols
+
+    newCols = addChemforms( buglev, curCols, db_rows)   # updates db_rows
+    curCols += newCols
+
+    dbUpdate(
+      buglev, conn, cursor, dbtablemodel, queryCols, curCols, db_rows)
+
+  finally:
+    if cursor != None: cursor.close()
+    if conn != None: conn.close()
+
 
 
 #====================================================================
@@ -230,41 +272,26 @@ def addChemforms( buglev, curCols, db_rows):
 
 #====================================================================
 
-def dbQuery(
-  buglev,
-  dbhost,
-  dbport,
-  dbuser,
-  dbpswd,
-  dbname,
-  dbschema,
-  dbtablemodel,
-  queryCols):
+def dbQuery( buglev, conn, cursor, dbtablemodel, icsdNums, queryCols):
 
   if queryCols[0] != 'mident': throwerr('first col must be mident')
   db_rows = None
-  conn = None
-  cursor = None
-  try:
-    conn = psycopg2.connect(
-      host=dbhost,
-      port=dbport,
-      user=dbuser,
-      password=dbpswd,
-      database=dbname)
-    if buglev >= 1:
-      print 'dbQuery: got conn.  dbhost: %s  dbport: %d' % (dbhost, dbport,)
-    cursor = conn.cursor()
-    cursor.execute('set search_path to %s', (dbschema,))
 
-    nmstg = ', '.join( queryCols)
-    cursor.execute('SELECT %s FROM %s order by icsdnum, mident' \
-      % (nmstg, dbtablemodel,))
-    db_rows = cursor.fetchall()
-    db_cols = [desc[0] for desc in cursor.description]
-  finally:
-    if cursor != None: cursor.close()
-    if conn != None: conn.close()
+  nmStg = ', '.join( queryCols)
+  if icsdNums == None:             # use all
+    sqlMsg = 'SELECT %s FROM %s ORDER BY icsdnum, mident' \
+      % (nmStg, dbtablemodel,)
+  else:                            # use only the specified icsdNums
+    if len(icsdNums) == 0: throwerr('icsdNums is empty')
+    icsdNumStg = ','.join( map( str, icsdNums))
+    sqlMsg = ('SELECT %s FROM %s WHERE icsdnum = ANY( ARRAY[%s])'
+      + ' ORDER BY icsdnum, mident') \
+      % (nmStg, dbtablemodel, icsdNumStg)
+
+  cursor.execute( sqlMsg)
+  db_rows = cursor.fetchall()
+  db_cols = [desc[0] for desc in cursor.description]
+
   if db_cols != queryCols: throwerr('db_cols mismatch')
 
   # Convert rows from tuples to lists so we can modify them later
@@ -287,17 +314,7 @@ def dbQuery(
 # Write the appended values for each row to the db.
 
 def dbUpdate(
-  buglev,
-  dbhost,
-  dbport,
-  dbuser,
-  dbpswd,
-  dbname,
-  dbschema,
-  dbtablemodel,
-  queryCols,
-  curCols,
-  db_rows):
+  buglev, conn, cursor, dbtablemodel, queryCols, curCols, db_rows):
 
   if buglev >= 1:
     print 'dbUpdate beg: queryCols: %s' % (queryCols,)
@@ -309,56 +326,37 @@ def dbUpdate(
   if icolmid != 0: throwerr('first col must be mident')
   if curCols[:qlen] != queryCols: throwerr('curCols mismatch')
   newCols = curCols[qlen:]
+  colStg = ', '.join( newCols)
+  for row in db_rows:
+    if len(row) != qlen + updLen: throwerr('wrong row len')
+    mident = row[icolmid]
 
-  conn = None
-  cursor = None
-  try:
-    conn = psycopg2.connect(
-      host=dbhost,
-      port=dbport,
-      user=dbuser,
-      password=dbpswd,
-      database=dbname)
-    if buglev >= 1:
-      print 'dbUpdate: got conn.  dbhost: %s  dbport: %d  autocommit: %s' \
-        % (dbhost, dbport, conn.autocommit,)
-    cursor = conn.cursor()
-    cursor.execute('set search_path to %s', (dbschema,))
+    # Convert the values to strings suitable for Postgresql
+    updStgs = updLen * [None]
+    for ii in range( updLen):
+      val = row[qlen+ii]
+      if val == None: msg = 'NULL'
+      elif isinstance( val, int) \
+        or isinstance( val, float) \
+        or isinstance( val, bool):
+        msg = str( val)
+      elif isinstance( val, str):
+        msg = '%s' % ( val,)
+        msg = msg.replace('\\', '\\\\')     # replace \ with \\
+        msg = msg.replace('"',  '\\"')      # replace " with \"
+        msg = msg.replace('\'', '\\\'')     # replace ' with \'
+        msg = 'E\'' + msg + '\''            # use escaped strings
+      else: throwerr('unknown type.  val: %s  type: %s' \
+        % (repr(val), type(val),))
+      updStgs[ii] = msg
 
-    colStg = ', '.join( newCols)
-    for row in db_rows:
-      if len(row) != qlen + updLen: throwerr('wrong row len')
-      mident = row[icolmid]
+    updStg = ', '.join( updStgs)
+    cursor.execute('UPDATE %s SET (%s) = (%s) WHERE mident = %s' \
+      % ( dbtablemodel, colStg, updStg, mident,))
+  if buglev >= 1: print 'dbUpdate: update done'
 
-      # Convert the values to strings suitable for Postgresql
-      updStgs = updLen * [None]
-      for ii in range( updLen):
-        val = row[qlen+ii]
-        if val == None: msg = 'NULL'
-        elif isinstance( val, int) \
-          or isinstance( val, float) \
-          or isinstance( val, bool):
-          msg = str( val)
-        elif isinstance( val, str):
-          msg = '%s' % ( val,)
-          msg = msg.replace('\\', '\\\\')     # replace \ with \\
-          msg = msg.replace('"',  '\\"')      # replace " with \"
-          msg = msg.replace('\'', '\\\'')     # replace ' with \'
-          msg = 'E\'' + msg + '\''            # use escaped strings
-        else: throwerr('unknown type.  val: %s  type: %s' \
-          % (repr(val), type(val),))
-        updStgs[ii] = msg
-
-      updStg = ', '.join( updStgs)
-      cursor.execute('UPDATE %s SET (%s) = (%s) WHERE mident = %s' \
-        % ( dbtablemodel, colStg, updStg, mident,))
-    if buglev >= 1: print 'dbUpdate: update done'
-
-    conn.commit()
-    if buglev >= 1: print 'dbUpdate: commit done'
-  finally:
-    if cursor != None: cursor.close()
-    if conn != None: conn.close()
+  conn.commit()
+  if buglev >= 1: print 'dbUpdate: commit done'
 
 
 #====================================================================
