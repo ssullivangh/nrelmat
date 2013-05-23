@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 
-import datetime, os, re, sys, traceback, cPickle
+import datetime, math, os, re, sys, time, traceback, cPickle
 
 import readVasp
 
@@ -64,10 +64,6 @@ def main():
     Read the OUTCAR file.
   '''
 
-
-
-
-
   buglev = None
   func = None
   readType = None
@@ -95,6 +91,7 @@ def main():
   resList = []
 
   if func == 'fillOne':
+    if buglev >= 1: logit('digestVasp: begin inDir: %s' % (inDir,))
     resObj = readVasp.parseDir( buglev, readType, inDir, -1)  # maxLev = -1
     resList.append( resObj)
   elif func == 'fillTree':
@@ -114,12 +111,13 @@ def fillTree(
   inDir,
   resList):
 
-  if buglev >= 2: print 'fillTree entry: inDir: %s' % (inDir,)
+  if buglev >= 2: logit('digestVasp: begin tree: %s' % (inDir,))
   fnames = os.listdir( inDir)
   fnames.sort()
 
   if readType == 'xml' and 'vasprun.xml' in fnames \
     or readType == 'pylada' and 'OUTCAR' in fnames:
+    if buglev >= 1: logit('digestVasp: begin inDir: %s' % (inDir,))
     resObj = readVasp.parseDir( buglev, readType, inDir, -1)  # maxLev = -1
     resList.append( resObj)
 
@@ -133,6 +131,25 @@ def fillTree(
         fpath,
         resList)
 
+
+#====================================================================
+
+# Print a logging message.
+# Yes, Python has a logging package.
+# This is better since it handles milliseconds
+# and is far easier to use.
+
+def logit(msg):
+  tm = time.time()
+  itm = int( math.floor( tm))
+  delta = tm - itm
+  loctm = time.localtime( itm)
+
+  stg = time.strftime( '%Y-%m-%d %H:%M:%S', loctm)
+  mdelta = int( math.floor( 1000 * delta))
+  stg += '.%03d' % (mdelta,)
+
+  print '%s %s' % (stg, msg,)
 
 #====================================================================
 

@@ -172,6 +172,10 @@ def parseDir(
     resObj.excTrace = traceback.format_exc( limit=None)
     resObj.excMsg = repr(exc)
     print 'readVasp.py.  caught exc: %s' % (resObj.excMsg,)
+    print '  inType:   "%s"' % (inType,)
+    print '  inDir:    "%s"' % (inDir,)
+    print '  realPath: "%s"' % (realPath,)
+    print '  icsdNum:  %d'   % (icsdNum,)
     print '===== traceback start ====='
     print resObj.excTrace
     print '===== traceback end ====='

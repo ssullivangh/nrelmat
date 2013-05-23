@@ -171,7 +171,7 @@ def main():
   elif func == 'readIncoming':
     while True:
 
-      if buglev >= 1: print 'main: checking inDirPath: %s' % (inDirPath,)
+      if buglev >= 1: logit('main: checking inDirPath: %s' % (inDirPath,))
       fnames = os.listdir( inDirPath)
       fnames.sort()
       for fname in fnames:
@@ -182,7 +182,7 @@ def main():
           timeStg = mat.group(3)
           userid = mat.group(4)
           hostname = mat.group(5)
-          if buglev >= 1: print 'main: wrapId: %s' % (wrapId,)
+          if buglev >= 1: logit('main: wrapId: %s' % (wrapId,))
           excArgs = None
           try: 
             gatherOne(
@@ -192,8 +192,8 @@ def main():
               dbschema, dbtablecontrib)
           except Exception, exc:
             excArgs = exc.args
-            print 'caught: %s' % (excArgs,)
-            print traceback.format_exc( limit=None)
+            logit('caught: %s' % (excArgs,))
+            logit(traceback.format_exc( limit=None))
 
           if excArgs == None:
             logit('archived %s' % (wrapId,))
@@ -215,7 +215,7 @@ def main():
         timeStg = mat.group(3)
         userid = mat.group(4)
         hostname = mat.group(5)
-        if buglev >= 1: print 'main: wrapId: %s' % (wrapId,)
+        if buglev >= 1: logit('main: wrapId: %s' % (wrapId,))
         subDir = '%s/%s' % (archDirPath, wrapId,)
         excArgs = None
         try: 
@@ -226,8 +226,8 @@ def main():
             dbschema, dbtablecontrib)
         except Exception, exc:
           excArgs = exc.args
-          print 'caught: %s' % (excArgs,)
-          print traceback.format_exc( limit=None)
+          logit('caught: %s' % (excArgs,))
+          logit(traceback.format_exc( limit=None))
 
         if excArgs == None:
           logit('archived %s' % (wrapId,))
@@ -285,7 +285,7 @@ def createTableContrib(
     if cursor != None: cursor.close()
     if conn != None: conn.close()
 
-  print 'wrapReceive.py: table created'
+  logit('wrapReceive.py: table created')
 
 
 #====================================================================
@@ -298,9 +298,9 @@ def gatherOne(
   dbschema, dbtablecontrib):
 
   if buglev >= 1:
-    print 'gatherOne: inDirPath: %s' % (inDirPath,)
-    print 'gatherOne: archDirPath: %s' % (archDirPath,)
-    print 'gatherOne: wrapId: %s' % (wrapId,)
+    logit('gatherOne: inDirPath: %s' % (inDirPath,))
+    logit('gatherOne: archDirPath: %s' % (archDirPath,))
+    logit('gatherOne: wrapId: %s' % (wrapId,))
 
   # Check paths
   archPathOld = os.path.abspath( '%s/%s.tgz'  % (inDirPath, wrapId,))
@@ -359,10 +359,10 @@ def processOne(
   adate = datetime.datetime.strptime(
     dateStg + ' ' + timeStg, '%Y.%m.%d %H.%M.%S')
   if buglev >= 1:
-    print 'processOne: wrapId: %s' % (wrapId,)
-    print 'processOne: adate: %s' % (adate,)
-    print 'processOne: userid: "%s"' % (userid,)
-    print 'processOne: hostname: "%s"' % (hostname,)
+    logit('processOne: wrapId: %s' % (wrapId,))
+    logit('processOne: adate: %s' % (adate,))
+    logit('processOne: userid: "%s"' % (userid,))
+    logit('processOne: hostname: "%s"' % (hostname,))
 
   # Get some statistics
   numIncar = findNumFiles('INCAR', subDir)
@@ -373,10 +373,10 @@ def processOne(
     desc = fin.read()
   desc = desc.strip()
   if buglev >= 1:
-    print 'processOne: numIncar: %d' % (numIncar,)
-    print 'processOne: numVasprun: %d' % (numVasprun,)
-    print 'processOne: numOutcar: %d' % (numOutcar,)
-    print 'processOne: desc: "%s"' % (desc,)
+    logit('processOne: numIncar: %d' % (numIncar,))
+    logit('processOne: numVasprun: %d' % (numVasprun,))
+    logit('processOne: numOutcar: %d' % (numOutcar,))
+    logit('processOne: desc: "%s"' % (desc,))
 
   # Process the digest file and add rows to the model table
   digestPath = '%s/%s' % (subDir, 'digest.pkl',)

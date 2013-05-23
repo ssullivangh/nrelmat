@@ -7,7 +7,7 @@
 # Use scp to upload the tar file to a wrapReceive.py process running
 # on the database server.
 
-digestVasp=/home/ssulliva/stuff/cidvasp/digestVasp.py
+digestVasp=~/cidvasp/digestVasp.py
 targetDir=scpuser@cid-dev.hpc.nrel.gov:/data/incoming
 
 set -e
@@ -60,20 +60,33 @@ uui=arch.date.$(date +%Y.%m.%d.time.%H.%M.%S).userid.$(whoami).hostname.$(uname 
 echo '===== wrapUpload.sh: The wrapId is ' $uui
 
 echo '===== wrapUpload.sh: begin tar'
-/usr/bin/find . -type f \
-  | sort \
-  | /bin/egrep 'CHG$|CONTCAR$|INCAR$|KPOINTS$|OUTCAR$|POSCAR$|pbserr$|pbsout$|stderr$|stdout$|vasprun\.xml$|digest\.env$|digest\.log$|digest\.pkl$|' \
-  | xargs tar czf $uploadDir/$uui.tgz
+time tar czf $uploadDir/$uui.tgz \
+  --exclude CHGCAR   \
+  --exclude DOSCAR   \
+  --exclude EIGENVAL \
+  --exclude IBZKPT   \
+  --exclude OSZICAR  \
+  --exclude PCDAT    \
+  --exclude POTCAR   \
+  --exclude PROCAR   \
+  --exclude WAVECAR  \
+  --exclude XDATCAR  \
+  digest* icsd_*
 
 
 # Require user confirm so the user doesn't walk off and 
 # scp gives timeout while waiting for a password.
 echo ''
-read -p '===== Press enter to begin uploading.'
+while true; do
+  echo Enter y to begin uploading.
+  read ans
+  if [ "$ans" == "y" ]; then break; fi
+done
+
 /bin/rm -f $uploadDir/$uui.flag
 touch $uploadDir/$uui.flag
 
-scp  $uploadDir/$uui.tgz  $uploadDir/$uui.flag $targetDir
+time scp  $uploadDir/$uui.tgz  $uploadDir/$uui.flag $targetDir
 
 echo ''
 echo '===== wrapUpload.sh: Thank you.  Your archive was uploaded.'
