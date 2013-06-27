@@ -71,6 +71,8 @@ time tar czf $uploadDir/$uui.tgz \
   --exclude PROCAR   \
   --exclude WAVECAR  \
   --exclude XDATCAR  \
+  --exclude relax_cellshape \
+  --exclude relax_ions \
   digest* icsd_*
 
 

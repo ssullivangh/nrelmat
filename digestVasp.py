@@ -18,6 +18,8 @@ def badparms( msg):
   print '  -func       <string>   fillOne / fillTree'
   print '  -readType   <string>   xml / pylada'
   print '  -inDir      <string>   input file or dir'
+  print '  -omits      <string>   comma separated list of strings which, if'
+  print '                         in a dir path, causes dir to be omitted.'
   print '  -outDigest  <string>   output digest file, to be used as'
   print '                           input by fillDbVasp.py.'
   sys.exit(1)
@@ -44,6 +46,8 @@ def main():
   **-func**        string       Function.  See below.
   **-readType**    string       Xml or pylada.  See below.
   **-inDir**       string       Input directory.
+  **-omits**       string       comma separated list of strings which, if
+                                in a dir path, causes dir to be omitted.
   **-outDigest**   string       Output digest file.  Typically "digest.pkl".
   ==============   =========    ==============================================
 
@@ -68,6 +72,7 @@ def main():
   func = None
   readType = None
   inDir = None
+  omits = []
   outDigest = None
 
   if len(sys.argv) % 2 != 1:
@@ -79,6 +84,11 @@ def main():
     elif key == '-func': func = val
     elif key == '-readType': readType = val
     elif key == '-inDir': inDir = val
+    elif key == '-omits':
+      omits = val.strip().split(',')
+      if len(omits) == 0: badparms('omits len is 0')
+      for omit in omits:
+        if len(omit) == 0: badparms('invalid omits')
     elif key == '-outDigest': outDigest = val
     else: badparms('unknown key: "%s"' % (key,))
 
@@ -92,10 +102,16 @@ def main():
 
   if func == 'fillOne':
     if buglev >= 1: logit('digestVasp: begin inDir: %s' % (inDir,))
-    resObj = readVasp.parseDir( buglev, readType, inDir, -1)  # maxLev = -1
-    resList.append( resObj)
+    foundOmit = False
+    for omit in omits:
+      if inDir.find(omit) >= 0: foundOmit = True
+    if foundOmit:
+      logit('digestVasp: omit inDir: %s' % (inDir,))
+    else:
+      resObj = readVasp.parseDir( buglev, readType, inDir, -1)  # maxLev = -1
+      resList.append( resObj)
   elif func == 'fillTree':
-    fillTree( buglev, func, readType, inDir, resList)
+    fillTree( buglev, func, readType, inDir, omits, resList)
   else: throwerr('unknown func: "%s"' % (func,))
 
   with open( outDigest, 'w') as fout:
@@ -109,6 +125,7 @@ def fillTree(
   func,
   readType,
   inDir,
+  omits,
   resList):
 
   if buglev >= 2: logit('digestVasp: begin tree: %s' % (inDir,))
@@ -118,8 +135,15 @@ def fillTree(
   if readType == 'xml' and 'vasprun.xml' in fnames \
     or readType == 'pylada' and 'OUTCAR' in fnames:
     if buglev >= 1: logit('digestVasp: begin inDir: %s' % (inDir,))
-    resObj = readVasp.parseDir( buglev, readType, inDir, -1)  # maxLev = -1
-    resList.append( resObj)
+
+    foundOmit = False
+    for omit in omits:
+      if inDir.find(omit) >= 0: foundOmit = True
+    if foundOmit:
+      logit('digestVasp: omit inDir: %s' % (inDir,))
+    else:
+      resObj = readVasp.parseDir( buglev, readType, inDir, -1)  # maxLev = -1
+      resList.append( resObj)
 
   for fnm in fnames:
     fpath = inDir + '/' + fnm
@@ -129,6 +153,7 @@ def fillTree(
         func,
         readType,
         fpath,
+        omits,
         resList)
 
 

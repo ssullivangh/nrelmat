@@ -213,6 +213,7 @@ def createTableModel(
                             --   rc:  relax_cellshape,
                             --   ri:  relax_ions
       relaxNum       int,   -- Folder num for rc or ri: 0, 1, ...
+
       excMsg         text,  -- exception msg from digestVasp.py
       excTrace       text,  -- exception trace from digestVasp.py
                             -- If excMsg != None,
@@ -331,7 +332,8 @@ def fillTable(
       '''
       + dbtablemodel + 
       ''' (
-          wrapid, path, icsdNum, magType, magNum, relaxType, relaxNum,
+          wrapid, path, icsdNum, magType, magNum,
+          relaxType, relaxNum,
           excMsg, excTrace,
           runDate, iterTotalTime,
           systemName, encut, ibrion, isif,

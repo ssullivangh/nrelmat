@@ -16,6 +16,7 @@ def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
   print '  -buglev     <int>      debug level'
+  print '  -wrapId     <string>   all or specific wrap id'
   print '  -inSpec     <string>   inSpecJsonFile'
   sys.exit(1)
 
