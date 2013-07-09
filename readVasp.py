@@ -84,86 +84,18 @@ def parseDir(
   if not os.path.isdir(inDir):
     throwerr('inDir is not a dir: "%s"' % (inDir,))
 
-  # Extract the ICSD number from realPath '.../icsd_dddddd/...'
-  realPath = os.path.realpath( inDir)
-  mat = re.match('^.*/icsd_(\d{6})/.*$', realPath)
-  if mat == None:
-    throwerr('no icsd id found in inDir name: "%s"' % (realPath,))
-  icsdNum = int( mat.group(1))
-
-  # Extract magnetic moment type from realPath
-  magType = None
-  magNum = 0
-  pairs = [['hs-ferro',      'hsf'],
-           ['hs-anti-ferro', 'hsaf'],
-           ['ls-ferro',      'lsf'],
-           ['ls-anti-ferro', 'lsaf'],
-           ['non-magnetic',  'nm']]
-  for (tname,tcode) in pairs:
-    ix = realPath.find( tname)
-    if ix >= 0:
-      magType = tcode
-      if tcode in ['hsaf', 'lsaf']:
-        rest = realPath[(ix+len(tname)):]
-        mat = re.match('^-(\d+).*$', rest)
-        if mat == None:
-          throwerr('no magNum found in realPath: "%s"' % (realPath,))
-        magNum = int( mat.group(1))
-      break
-  if magType == None:
-    throwerr('no magType found in realPath: "%s"' % (realPath,))
-
-  # Extract relaxType from realPath
-
-  # If realPath contains 'relax_cellshape', set relaxType = 'rc'
-  # and relaxNum = the number of the subfolder.  Similarly for 'relax_ions'.
-  relaxType = 'std'
-  relaxNum = 0
-  pairs = [['relax_cellshape', 'rc'],
-           ['relax_ions',      'ri']]
-  for (tname,tcode) in pairs:
-    ix = realPath.find( tname)
-    if ix >= 0:
-      relaxType = tcode
-      rest = realPath[(ix+len(tname)):]
-      mat = re.match('^/(\d+).*$', rest)
-      if mat == None:
-        throwerr('no subfolder found in realPath: "%s"' % (realPath,))
-      relaxNum = int( mat.group(1))
-      break
-
-  # Get statistics on files in this dir.
-  fileNames = os.listdir( inDir)
-  fileNames.sort()
-  fileSizes = []
-  for fname in fileNames:
-    path = inDir + '/' + fname
-    if os.path.isfile(path):
-      fstat = os.stat( path)
-      fileSizes.append( fstat.st_size)
-
-
-
   resObj = ResClass()
-  resObj.realPath = realPath
-  resObj.icsdNum = icsdNum
-  resObj.magType = magType
-  resObj.magNum = magNum
-  resObj.relaxType = relaxType
-  resObj.relaxNum = relaxNum
-  resObj.excMsg = None
   resObj.excTrace = None
-  resObj.fileNames = fileNames
-  resObj.fileSizes = fileSizes
+  resObj.excMsg = None
 
   try:
     if inType == 'pylada':
-      inFile = inDir + '/OUTCAR'
+      inFile = os.path.join( inDir, 'OUTCAR')
       if not os.path.isfile(inFile):
         throwerr('inFile is not a file: "%s"' % (inFile,))
       parsePylada( buglev, inFile, resObj)
     elif inType == 'xml':
-      inFile = inDir + '/vasprun.xml'
+      inFile = os.path.join( inDir, 'vasprun.xml')
       if not os.path.isfile(inFile):
         throwerr('inFile is not a file: "%s"' % (inFile,))
       parseXml( buglev, inFile, maxLev, resObj)
@@ -174,11 +106,10 @@ def parseDir(
     print 'readVasp.py.  caught exc: %s' % (resObj.excMsg,)
     print '  inType:   "%s"' % (inType,)
     print '  inDir:    "%s"' % (inDir,)
-    print '  realPath: "%s"' % (realPath,)
-    print '  icsdNum:  %d'   % (icsdNum,)
     print '===== traceback start ====='
     print resObj.excTrace
     print '===== traceback end ====='
+    throwerr( exc)
 
   return resObj
 
@@ -203,7 +134,7 @@ def parsePylada( buglev, inFile, resObj):
   # Use float() to get rid of Quantities units
   resObj.algo         = ex.algo
   resObj.ediff        = float( ex.ediff)
-  resObj.encut        = float( ex.encut)
+  resObj.encut_ev     = float( ex.encut)          # eV
   resObj.ibrion       = ex.ibrion
   resObj.isif         = ex.isif
   resObj.systemName   = ex.system
@@ -234,7 +165,7 @@ def parsePylada( buglev, inFile, resObj):
   natom = len( struct)
   resObj.atomNames = [ struct[ii].type for ii in range( natom)]
 
-  resObj.atomMasses = None          # not available
+  resObj.atomMasses_amu = None      # not available
   resObj.atomPseudos = None         # not available
   resObj.atomValences = None        # not available
 
@@ -253,7 +184,7 @@ def parsePylada( buglev, inFile, resObj):
   natom = len( struct)
   cartPos = natom * [None]
   for ii in range( natom):
-    cartPos[ii] = struct[ii].pos
+    cartPos[ii] = struct[ii].pos      # no units
 
   resObj.initialCartesianPosMat = np.array( cartPos)
 
@@ -290,12 +221,12 @@ def parsePylada( buglev, inFile, resObj):
     print 'kpointRecipSpaceCartCoords:\n%s' \
       % (repr(resObj.kpointRecipSpaceCartCoords),)
   #===== final volume and density =====
-  resObj.finalVolumeVasp = float( ex.volume)   # Angstrom^3
-  resObj.density = float( ex.density)          # g/cm3
+  resObj.finalVolumeVasp_ang3 = float( ex.volume)     # Angstrom^3
+  resObj.density_g_cm3 = float( ex.density)           # g/cm3
   #===== last calc forces =====
-  resObj.finalForceMat = np.array( ex.forces)
-  resObj.finalStressMat = np.array( ex.stress)
-  resObj.finalPressure = float( ex.pressure)
+  resObj.finalForceMat_ev_ang = np.array( ex.forces)  # eV/angstrom
+  resObj.finalStressMat_kbar = np.array( ex.stress)   # kbar
+  resObj.finalPressure_kbar = float( ex.pressure)     # kbar
   #===== eigenvalues and occupancies =====
   resObj.eigenMat = np.array( ex.eigenvalues)
   # Caution: for non-magnetic, OUTCAR occMat = 2 while vasprun.xml = 1.
@@ -303,12 +234,12 @@ def parsePylada( buglev, inFile, resObj):
   resObj.occMat = np.array( ex.occupations)
   #===== misc junk =====
   #===== energy, efermi0 =====
-  resObj.finalEnergyWithout = float( ex.total_energy)
-  resObj.efermi0      = float( ex.fermi0K)
+  resObj.energyNoEntrp = float( ex.total_energy)         # eV
+  resObj.efermi0      = float( ex.fermi0K)               # eV
   #===== cbMin, vbMax, bandgap =====
-  resObj.cbMin        = float( ex.cbm)
-  resObj.vbMax        = float( ex.vbm)
-  resObj.bandgap      = resObj.cbMin - resObj.vbMax
+  resObj.cbMin        = float( ex.cbm)                   # eV
+  resObj.vbMax        = float( ex.vbm)                   # eV
+  resObj.bandgap      = resObj.cbMin - resObj.vbMax      # eV
   if buglev >= 5:
     print 'cbMin: %g' % (resObj.cbMin,)
     print 'vbMax: %g' % (resObj.vbMax,)
@@ -394,8 +325,8 @@ def parseXml( buglev, inXml, maxLev, resObj):
   # OUTCAR: use the first occurance of:
   #   ENCUT  =  252.0 eV  18.52 Ry    4.30 a.u.   4.08  4.08 15.92*2*pi/ulx,y,z
   #   ENCUT = 252.0
-  resObj.encut = getScalar( root, 'incar/i[@name=\'ENCUT\']', float)
-  if buglev >= 5: print 'encut: %g' % (resObj.encut,)
+  resObj.encut_ev = getScalar( root, 'incar/i[@name=\'ENCUT\']', float)
+  if buglev >= 5: print 'encut_ev: %g' % (resObj.encut_ev,)
 
   resObj.ibrion = getScalar( root, 'incar/i[@name=\'IBRION\']', int)
   if buglev >= 5: print 'ibrion: %g' % (resObj.ibrion,)
@@ -483,17 +414,17 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
   atomTypeMrr = getArrayByPath(
     buglev, root, 'atominfo/array[@name=\'atomtypes\']')
-  resObj.typeNames    = atomTypeMrr['element']
-  resObj.typeNums     = atomTypeMrr['atomspertype']
-  resObj.typeMasses   = atomTypeMrr['mass']
-  resObj.typeValences = atomTypeMrr['valence']
-  resObj.typePseudos  = atomTypeMrr['pseudopotential']
+  resObj.typeNames       = atomTypeMrr['element']
+  resObj.typeNums        = atomTypeMrr['atomspertype']
+  resObj.typeMasses_amu  = atomTypeMrr['mass']
+  resObj.typeValences    = atomTypeMrr['valence']
+  resObj.typePseudos     = atomTypeMrr['pseudopotential']
   if buglev >= 5:
     print '\natomTypeMrr:'
     printMrr( atomTypeMrr)
     print 'typeNames: %s' % ( resObj.typeNames,)
     print 'typeNums: %s' % ( resObj.typeNums,)
-    print 'typeMasses: %s' % ( resObj.typeMasses,)
+    print 'typeMasses_amu: %s' % ( resObj.typeMasses_amu,)
     print 'typeValences: %s' % ( resObj.typeValences,)
     print 'typePseudos: %s' % ( resObj.typePseudos,)
 
@@ -522,19 +453,19 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
   resObj.atomNames = atomMrr['element']
   natom = len( resObj.atomNames)
-  resObj.atomMasses = natom * [None]
+  resObj.atomMasses_amu = natom * [None]
   resObj.atomValences = natom * [None]
   resObj.atomPseudos = natom * [None]
   for ii in range( natom):
     ix = atomMrr['atomtype'][ii] - 1       # change to origin 0
-    resObj.atomMasses[ii]   = resObj.typeMasses[ix]
+    resObj.atomMasses_amu[ii]   = resObj.typeMasses_amu[ix]
     resObj.atomValences[ii] = resObj.typeValences[ix]
     resObj.atomPseudos[ii] = resObj.typePseudos[ix]
     if resObj.atomNames[ii] != resObj.typeNames[ix]:
       throwerr('name mismatch')
   if buglev >= 5:
     print 'atomNames: %s' % ( resObj.atomNames,)
-    print 'atomMasses: %s' % ( resObj.atomMasses,)
+    print 'atomMasses_amu: %s' % ( resObj.atomMasses_amu,)
     print 'atomValences: %s' % ( resObj.atomValences,)
     print 'atomPseudos: %s' % ( resObj.atomPseudos,)
 
@@ -655,13 +586,15 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
   # volume, Angstrom^3
   volScale = 1.0
-  resObj.finalVolumeCalc = abs( np.linalg.det(
+  resObj.finalVolumeCalc_ang3 = abs( np.linalg.det(
     volScale * resObj.finalBasisMat))
-  if buglev >= 5: print 'finalVolumeCalc: %g' % (resObj.finalVolumeCalc,)
+  if buglev >= 5:
+    print 'finalVolumeCalc_ang3: %g' % (resObj.finalVolumeCalc_ang3,)
 
-  resObj.finalVolumeVasp = getScalar(
+  resObj.finalVolumeVasp_ang3 = getScalar(
     root, 'structure[@name=\'finalpos\']/crystal/i[@name=\'volume\']', float)
-  if buglev >= 5: print 'finalVolumeVasp: %g' % (resObj.finalVolumeVasp,)
+  if buglev >= 5:
+    print 'finalVolumeVasp_ang3: %g' % (resObj.finalVolumeVasp_ang3,)
 
   # reciprocal space volume, * (2*pi)**3
   invMat = np.linalg.inv( volScale * resObj.finalBasisMat)
@@ -675,37 +608,39 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
   # Density
   # xxx better: get atomic weights from periodic table
-  volCm = resObj.finalVolumeCalc / (1.e8)**3    # 10**8 Angstrom per cm
+  volCm = resObj.finalVolumeCalc_ang3 / (1.e8)**3    # 10**8 Angstrom per cm
   totMass = np.dot( atomTypeMrr['atomspertype'], atomTypeMrr['mass'])
   totMassGm = totMass *  1.660538921e-24        #  1.660538921e-24 g / amu
-  resObj.density = totMassGm / volCm
+  resObj.density_g_cm3 = totMassGm / volCm
   if buglev >= 5:
     print 'volCm: %g' % (volCm,)
     print 'totMassGm: %g' % (totMassGm,)
-    print 'density: %g' % (resObj.density,)
+    print 'density_g_cm3: %g' % (resObj.density_g_cm3,)
 
 
   if buglev >= 5: print '\n===== last calc forces =====\n'
 
-  resObj.finalForceMat = getRawArray(
+  resObj.finalForceMat_ev_ang = getRawArray(
     root, 'calculation[last()]/varray[@name=\'forces\']/v',
     0, 3, float)
-  if buglev >= 5: print 'finalForceMat:\n%s' % (repr(resObj.finalForceMat),)
+  if buglev >= 5:
+    print 'finalForceMat_ev_ang:\n%s' % (repr(resObj.finalForceMat_ev_ang),)
 
   # Get stress
-  resObj.finalStressMat = getRawArray(
+  resObj.finalStressMat_kbar = getRawArray(
     root, 'calculation[last()]/varray[@name=\'stress\']/v',
     3, 3, float)
-  if buglev >= 5: print 'finalStressMat:\n%s' % (repr(resObj.finalStressMat),)
+  if buglev >= 5:
+    print 'finalStressMat_kbar:\n%s' % (repr(resObj.finalStressMat_kbar),)
 
   # Calc pressure
   # xxx Caution: we do not include the non-diag terms in:
   #   VASP: force.F: FORCE_AND_STRESS: line 1410:
   #     PRESS=(TSIF(1,1)+TSIF(2,2)+TSIF(3,3))/3._q &
   #        &      -DYN%PSTRESS/(EVTOJ*1E22_q)*LATT_CUR%OMEGA
-  diag = [resObj.finalStressMat[ii][ii] for ii in range(3)]
-  resObj.finalPressure = sum( diag) / 3.0
-  if buglev >= 5: print 'finalPressure: %g' % (resObj.finalPressure,)
+  diag = [resObj.finalStressMat_kbar[ii][ii] for ii in range(3)]
+  resObj.finalPressure_kbar = sum( diag) / 3.0
+  if buglev >= 5: print 'finalPressure_kbar: %g' % (resObj.finalPressure_kbar,)
 
 
   if buglev >= 5: print '\n===== eigenvalues and occupancies =====\n'
@@ -792,7 +727,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
   if buglev >= 5: print '\n===== energy, efermi0 =====\n'
 
-  resObj.finalEnergyWithout = getScalar(
+  resObj.energyNoEntrp = getScalar(
     root, 'calculation[last()]/energy/i[@name=\'e_wo_entrp\']', float)
 
   # efermi0
@@ -1166,6 +1101,10 @@ def getVec( root, path, nmin, nmax, dtype):
 # Return stripped string
 
 def getString( root, path):
+#xxx all ### start here
+  print '######### getString: root: ', root
+  print '######### getString: path: ', path
+  print '######### getString: repr(path): ', repr(path)
   lst = root.findall( path)
   if len(lst) == 0:
     throwerr('path not found: "%s"' % (path,))

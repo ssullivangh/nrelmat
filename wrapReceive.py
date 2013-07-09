@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import datetime, json, math, os, re
-import shutil, subprocess, sys, time, traceback
+import shutil, sys, time, traceback
 import psutil
 import psycopg2
 import fillDbVasp
@@ -17,7 +17,7 @@ def badparms( msg):
   print 'Parms:'
   print ''
   print '  -buglev     <int>      debug level'
-  print '  -func       <string>   createTableContrib / readIncoming / redoArch'
+  print '  -func       <string>   readIncoming / redoArch'
   print '  -inSpec     <string>   inSpecJsonFile'
   sys.exit(1)
 
@@ -46,9 +46,6 @@ def main():
 
   **Values for the -func Parameter:**
 
-  **createTableContrib**
-    Drop and recreate the contrib table.
-
   **readIncoming**
     Monitor the inDir for new additions.
     When one is found, move it to archDir, untar it,
@@ -58,11 +55,14 @@ def main():
 
   **redoArch**
     Re-process all the subDirs found in archDir.
-    This is useful when someone changes the database tables, for example
-    by adding an new column.  Then one can use
-    fillDbTable.py:createTableModel,
-    and our createTableContrib and redoArch
-    to recreate the tables with the new column.
+    This is useful when someone changes the database tables,
+    for example by adding an new column.
+    Then one can use the following to recreate the tables
+    with the new column.
+
+      fillDbTable.py -func createTableModel
+      fillDbTable.py -func createTableContrib
+      wrapReceive.py -func redoArch
 
   **inSpec File Parameters:**
 
@@ -103,6 +103,7 @@ def main():
   buglev = None
   func = None
   inSpec = None
+  note = None
 
   if len(sys.argv) % 2 != 1:
     badparms('Parms must be key/value pairs')
@@ -112,11 +113,13 @@ def main():
     if key == '-buglev': buglev = int( val)
     elif key == '-func': func = val
     elif key == '-inSpec': inSpec = val
+    elif key == '-note': note = val
     else: badparms('unknown key: "%s"' % (key,))
 
   if buglev == None: badparms('parm not specified: -buglev')
   if func == None: badparms('parm not specified: -func')
   if inSpec == None: badparms('parm not specified: -inSpec')
+  if note == None: badparms('parm not specified: -note')
 
   with open( inSpec) as fin:
     specMap = json.load( fin)
@@ -142,13 +145,17 @@ def main():
   if dbpswd == None:   badparms('inSpec name not found: dbpswd')
   if dbname == None:   badparms('inSpec name not found: dbname')
   if dbschema == None: badparms('inSpec name not found: dbschema')
+
+xxx del all dbtablecontrib, etc?
   if dbtablecontrib == None: badparms('inSpec name not found: dbtablecontrib')
+
   if dbtablemodel   == None: badparms('inSpec name not found: dbtablemodel')
   dbport = int( dbport)
 
 
   # Quit if there's a duplicate process already running.
-  checkDupProcs()
+  print 'xxxxxxxxxxxx checkDupProcs omitted'
+  ##checkDupProcs()
 
   inDirPath = os.path.abspath( inDir)
   archDirPath = os.path.abspath( archDir)
@@ -161,14 +168,10 @@ def main():
   # xxx use flog
 
   # Coord with uui in wrapUpload.sh
-  uuiPattern = r'(arch\.date\.(\d{4}\.\d{2}\.\d{2})\.time\.(\d{2}\.\d{2}\.\d{2})\.userid\.(.*)\.hostname\.(.*)\.digest)'
+  uuiPattern = r'^(arch\.(\d{4}\.\d{2}\.\d{2})\.tm\.(\d{2}\.\d{2}\.\d{2}\.\d{6})\.user\.(.*)\.host\.(.*)\.digest)'
   flagPattern = uuiPattern + r'\.flag'
 
-  if func == 'createTableContrib':
-    createTableContrib( buglev, dbhost, dbport, dbuser, dbpswd,
-      dbname, dbschema, dbtablecontrib)
-
-  elif func == 'readIncoming':
+  if func == 'readIncoming':
     while True:
 
       if buglev >= 1: logit('main: checking inDirPath: %s' % (inDirPath,))
@@ -185,9 +188,9 @@ def main():
           if buglev >= 1: logit('main: wrapId: %s' % (wrapId,))
           excArgs = None
           try: 
-            gatherOne(
+            gatherArchive(
               buglev, inDirPath, archDirPath,
-              wrapId, dateStg, timeStg, userid, hostname, inSpec,
+              wrapId, dateStg, timeStg, userid, hostname, inSpec, note,
               dbhost, dbport, dbuser, dbpswd, dbname,
               dbschema, dbtablecontrib)
           except Exception, exc:
@@ -216,12 +219,12 @@ def main():
         userid = mat.group(4)
         hostname = mat.group(5)
         if buglev >= 1: logit('main: wrapId: %s' % (wrapId,))
-        subDir = '%s/%s' % (archDirPath, wrapId,)
+        subDir = os.path.join( archDirPath, wrapId)
         excArgs = None
         try: 
-          processOne(
+          processTree(
             buglev, subDir, wrapId, dateStg, timeStg,
-            userid, hostname, inSpec,
+            userid, hostname, inSpec, note,
             dbhost, dbport, dbuser, dbpswd, dbname,
             dbschema, dbtablecontrib)
         except Exception, exc:
@@ -243,103 +246,46 @@ def main():
 #====================================================================
 
 
-def createTableContrib(
-  buglev,
-  dbhost,
-  dbport,
-  dbuser,
-  dbpswd,
-  dbname,
-  dbschema,
-  dbtablecontrib):
-
-  conn = None
-  cursor = None
-  try:
-    conn = psycopg2.connect(
-      host=dbhost,
-      port=dbport,
-      user=dbuser,
-      password=dbpswd,
-      database=dbname)
-    cursor = conn.cursor()
-    cursor.execute('set search_path to %s', (dbschema,))
-
-    cursor.execute('drop table if exists %s' % (dbtablecontrib,))
-    conn.commit()
-
-    cursor.execute('''
-      CREATE TABLE %s (
-        wrapid       text,
-        adate        timestamp,
-        userid       text,
-        hostname     text,
-        numincar     int,
-        numvasprun   int,
-        numoutcar    int,
-        description  text
-      )
-    ''' % (dbtablecontrib,))
-    conn.commit()
-  finally:
-    if cursor != None: cursor.close()
-    if conn != None: conn.close()
-
-  logit('wrapReceive.py: table created')
-
 
 #====================================================================
 
 
-def gatherOne(
+def gatherArchive(
   buglev, inDirPath, archDirPath,
-  wrapId, dateStg, timeStg, userid, hostname, inSpec,
+  wrapId, dateStg, timeStg, userid, hostname, inSpec, note,
   dbhost, dbport, dbuser, dbpswd, dbname,
   dbschema, dbtablecontrib):
 
   if buglev >= 1:
-    logit('gatherOne: inDirPath: %s' % (inDirPath,))
-    logit('gatherOne: archDirPath: %s' % (archDirPath,))
-    logit('gatherOne: wrapId: %s' % (wrapId,))
+    logit('gatherArchive: inDirPath: %s' % (inDirPath,))
+    logit('gatherArchive: archDirPath: %s' % (archDirPath,))
+    logit('gatherArchive: wrapId: %s' % (wrapId,))
 
   # Check paths
-  archPathOld = os.path.abspath( '%s/%s.tgz'  % (inDirPath, wrapId,))
-  flagPathOld = os.path.abspath( '%s/%s.flag' % (inDirPath, wrapId,))
-  if not os.access( archPathOld, os.R_OK):
-    throwerr('cannot read file: %s' % (archPathOld,))
-  if not os.access( flagPathOld, os.R_OK):
-    throwerr('cannot read file: %s' % (flagPathOld,))
+  archPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.tgz'))
+  flagPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.flag'))
+  wrapUpload.checkFileFull( archPathOld)
+  wrapUpload.checkFile( flagPathOld)
 
   # Move x.tgz and x.flag to subDir==archDir/wrapId
-  subDir = '%s/%s' % (archDirPath, wrapId,)
+  subDir = os.path.join( archDirPath, wrapId)
   os.mkdir( subDir)
   shutil.copy2( archPathOld, subDir)
   shutil.copy2( flagPathOld, subDir)
   os.remove( archPathOld)
   os.remove( flagPathOld)
 
-  archPathNew = os.path.abspath( '%s/%s.tgz'  % (subDir, wrapId,))
-  flagPathNew = os.path.abspath( '%s/%s.flag' % (subDir, wrapId,))
+  archPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.tgz'))
+  flagPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.flag'))
 
   # Untar wrapId.tgz in subDir==archDir/wrapId
 
-  proc = subprocess.Popen(
-    ['/bin/tar', '-xzf', archPathNew],
-    shell=False,
-    cwd=subDir,
-    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    bufsize=10*1000*1000)
-  (stdout, stderr) = proc.communicate()
-  rc = proc.wait()
-  if rc != 0:
-    msg = 'tar failed.  rc: %d\n' % (rc,)
-    msg += '\n===== stdout:\n%s\n' % (stdout,)
-    msg += '\n===== stderr:\n%s\n' % (stderr,)
-    throwerr( msg)
+  args = ['/bin/tar', '-xzf', archPathNew]
+  wrapUpload.runSubprocess( bugLev, subDir, args)
 
-  processOne(
+  processTree(
     buglev, subDir, wrapId, dateStg, timeStg,
-    userid, hostname, inSpec,
+    userid, hostname, inSpec, note,
     dbhost, dbport, dbuser, dbpswd, dbname,
     dbschema, dbtablecontrib)
 
@@ -349,50 +295,36 @@ def gatherOne(
 
 
 
-def processOne(
+def processTree(
   buglev, subDir, wrapId, dateStg, timeStg,
-  userid, hostname, inSpec,
+  userid, hostname, inSpec, note,
   dbhost, dbport, dbuser, dbpswd, dbname,
   dbschema, dbtablecontrib):
 
   # Get adate
   adate = datetime.datetime.strptime(
-    dateStg + ' ' + timeStg, '%Y.%m.%d %H.%M.%S')
+    dateStg + ' ' + timeStg, '%Y.%m.%d %H.%M.%S.%f')
   if buglev >= 1:
-    logit('processOne: wrapId: %s' % (wrapId,))
-    logit('processOne: adate: %s' % (adate,))
-    logit('processOne: userid: "%s"' % (userid,))
-    logit('processOne: hostname: "%s"' % (hostname,))
+    logit('processTree: wrapId: %s' % (wrapId,))
+    logit('processTree: subDir: %s' % (subDir,))
+    logit('processTree: adate: %s' % (adate,))
+    logit('processTree: userid: "%s"' % (userid,))
+    logit('processTree: hostname: "%s"' % (hostname,))
 
-  # Get some statistics
-  numIncar = findNumFiles('INCAR', subDir)
-  numVasprun = findNumFiles('vasprun.xml', subDir)
-  numOutcar = findNumFiles('OUTCAR', subDir)
-  descFile = '%s/%s' % (subDir, 'digest.env/desc',)
-  with open( subDir + '/digest.env/desc') as fin:
-    desc = fin.read()
-  desc = desc.strip()
-  if buglev >= 1:
-    logit('processOne: numIncar: %d' % (numIncar,))
-    logit('processOne: numVasprun: %d' % (numVasprun,))
-    logit('processOne: numOutcar: %d' % (numOutcar,))
-    logit('processOne: desc: "%s"' % (desc,))
+xxxxxxxxxxx
+  print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx skip fillDbVasp xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
+  #fillDbVasp.fillDbVasp(
+  #  buglev,
+  #  'fillTable',     # func
+  #  subDir,
+  #  wrapId,
+  #  inSpec)
 
-  # Process the digest file and add rows to the model table
-  digestPath = '%s/%s' % (subDir, 'digest.pkl',)
-  if not os.access( digestPath, os.R_OK):
-    throwerr('cannot read file: %s' % (digestPath,))
-
-  fillDbVasp.fillDbVasp(
-    buglev,
-    'fillTable',     # func
-    digestPath,      # inDigest
-    wrapId,
-    inSpec)
 
   # Fill in additional columns in the model table
   augmentDb.augmentDb( buglev, wrapId, inSpec)
 
+xxxxxxxxx del:
   # Update contrib table
   conn = None
   cursor = None
@@ -415,23 +347,6 @@ def processOne(
     if cursor != None: cursor.close()
     if conn != None: conn.close()
 
-
-#====================================================================
-
-# Find the number of files with name==tag in tree at dir.
-# Yes, Python has os.walk, but this is better.
-
-def findNumFiles( tag, dir):
-  if not os.path.isdir( dir): throwerr('not a dir: %s' % (dir,))
-  nms = os.listdir( dir)
-  nms.sort()
-  count = 0
-  for nm in nms:
-    if nm == tag: count += 1
-    subDir = dir + '/' + nm
-    if os.path.isdir( subDir):
-      count += findNumFiles( tag, subDir)      # recursion
-  return count
 
 #====================================================================
 
@@ -466,24 +381,6 @@ def checkDupProcs():
             + '  pid: %d  cmdline: %s  pgmPath: %s' % (pid, cmdline, pgmPath))
 
 
-#====================================================================
-
-# Print a logging message.
-# Yes, Python has a logging package.
-# This is better since it handles milliseconds
-# and is far easier to use.
-
-def logit(msg):
-  tm = time.time()
-  itm = int( math.floor( tm))
-  delta = tm - itm
-  loctm = time.localtime( itm)
-
-  stg = time.strftime( '%Y-%m-%d %H:%M:%S', loctm)
-  mdelta = int( math.floor( 1000 * delta))
-  stg += '.%03d' % (mdelta,)
-
-  print '%s %s' % (stg, msg,)
 
 #====================================================================
 

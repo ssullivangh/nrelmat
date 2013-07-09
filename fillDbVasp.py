@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
-import datetime, json, os, re, sys, traceback, cPickle
+import datetime, json, os, re, sys
 import numpy as np
 import psycopg2
 
+import wrapUpload
 import readVasp
 
 
-buglev = 0  # xxx make a parm
 
 #====================================================================
 
@@ -15,10 +15,10 @@ buglev = 0  # xxx make a parm
 def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
-  print '  -buglev     <int>      debug level'
-  print '  -func       <string>   createTableModel / fillTable'
-  print '  -inDigest   <string>   input digest file, created by'
-  print '                           digestVasp_a.py.'
+  print '  -bugLev     <int>      debug level'
+  print '  -func       <string>   createTableModel / createTableContrib'
+  print '                         / fillTable'
+  print '  -archDir    <string>   input dir tree'
   print '  -wrapId     <string>'
   print '  -inSpec     <string>   inSpecJsonFile'
   sys.exit(1)
@@ -29,8 +29,7 @@ def badparms( msg):
 
 def main():
   '''
-  Read a digest file created by digestVasp.py and add
-  rows to the database table "model".
+  Read a dir tree and add rows to the database table "model".
   The function is determined by the **-func** parameter; see below.
 
   This function is called by wrapReceive.py.
@@ -40,9 +39,9 @@ def main():
   ==============   =========    ==============================================
   Parameter        Type         Description
   ==============   =========    ==============================================
-  **-buglev**      integer      Debug level.  Normally 0.
+  **-bugLev**      integer      Debug level.  Normally 0.
   **-func**        string       Function.  See below.
-  **-inDigest**    string       Input digest file.
+  **-archDir**     string       Input dir tree.
   **-wrapId**      string       The unique id of this upload, created
                                 by wrapReceive.py from the uploaded file name.
   **-inSpec**      string       JSON file containing parameters.  See below.
@@ -51,11 +50,14 @@ def main():
   **Values for the -func Parameter:**
 
   **createTableModel**
-    Drop and create the model table.  In this case the -inDigest
+    Drop and create the model table.  In this case the -archDir
     and -wrapId parameters should be "none".
 
+  **createTableContrib**
+    Drop and recreate the contrib table.
+
   **fillTable**
-    Read the digest file and insert database table rows.
+    Read a dir tree and add rows to the database table "model".
 
   **inSpec File Parameters:**
 
@@ -69,6 +71,7 @@ def main():
   **dbname**             Database database name.
   **dbschema**           Database schema name.
   **dbtablemodel**       Database name of the "model" table.
+  **dbtablecontrib**     Database name of the "contrib" table.
   ===================    ==============================================
 
   **inSpec file example:**::
@@ -80,36 +83,37 @@ def main():
       "dbpswd"         : "x",
       "dbname"         : "cidlada",
       "dbschema"       : "satom",
-      "dbtablemodel"   : "model"
+      "dbtablemodel"   : "model",
+      "dbtablecontrib" : "contrib"
     }
 
   '''
 
-  buglev     = None
-  func       = None
-  inDigest   = None
-  wrapId     = None
-  inSpec = None
+  bugLev   = None
+  func     = None
+  archDir  = None
+  wrapId   = None
+  inSpec   = None
 
   if len(sys.argv) % 2 != 1:
     badparms('Parms must be key/value pairs')
   for iarg in range( 1, len(sys.argv), 2):
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
-    if   key == '-buglev': buglev = int( val)
+    if   key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
-    elif key == '-inDigest': inDigest = val
+    elif key == '-archDir': archDir = val
     elif key == '-wrapId': wrapId = val
     elif key == '-inSpec': inSpec = val
     else: badparms('unknown key: "%s"' % (key,))
 
-  if buglev == None: badparms('parm not specified: -buglev')
+  if bugLev == None: badparms('parm not specified: -bugLev')
   if func == None: badparms('parm not specified: -func')
-  if inDigest == None: badparms('parm not specified: -inDigest')
+  if archDir == None: badparms('parm not specified: -archDir')
   if wrapId == None: badparms('parm not specified: -wrapId')
   if inSpec == None: badparms('parm not specified: -inSpec')
 
-  fillDbVasp( buglev, func, inDigest, wrapId, inSpec)
+  fillDbVasp( bugLev, func, archDir, wrapId, inSpec)
 
 
 #====================================================================
@@ -117,11 +121,17 @@ def main():
 
 
 def fillDbVasp(
-  buglev,
+  bugLev,
   func,
-  inDigest,
+  archDir,
   wrapId,
   inSpec):
+
+  if bugLev >= 1:
+    print 'fillDbVasp: func: %s' % (func,)
+    print 'fillDbVasp: archDir: %s' % (archDir,)
+    print 'fillDbVasp: wrapId: %s' % (wrapId,)
+    print 'fillDbVasp: inSpec: %s' % (inSpec,)
 
   with open( inSpec) as fin:
     specMap = json.load( fin)
@@ -133,6 +143,7 @@ def fillDbVasp(
   dbname   = specMap.get('dbname', None)
   dbschema = specMap.get('dbschema', None)
   dbtablemodel   = specMap.get('dbtablemodel', None)
+  dbtablecontrib = specMap.get('dbtablecontrib', None)
 
   if dbhost == None:   badparms('inSpec name not found: dbhost')
   if dbport == None:   badparms('inSpec name not found: dbport')
@@ -141,8 +152,13 @@ def fillDbVasp(
   if dbname == None:   badparms('inSpec name not found: dbname')
   if dbschema == None: badparms('inSpec name not found: dbschema')
   if dbtablemodel   == None: badparms('inSpec name not found: dbtablemodel')
+  if dbtablecontrib == None: badparms('inSpec name not found: dbtablecontrib')
   dbport = int( dbport)
 
+  if bugLev >= 1:
+    print 'fillDbVasp: dbhost: %s' % (dbhost,)
+    print 'fillDbVasp: dbport: %s' % (dbport,)
+    print 'fillDbVasp: dbuser: %s' % (dbuser,)
 
   ##np.set_printoptions( threshold=10000)
 
@@ -171,9 +187,12 @@ def fillDbVasp(
     cursor.execute('set search_path to %s', (dbschema,))
 
     if func == 'createTableModel':
-      createTableModel( buglev, conn, cursor, dbtablemodel)
+      createTableModel( bugLev, conn, cursor, dbtablemodel)
+    elif func == 'createTableContrib':
+      createTableContrib( bugLev, conn, cursor, dbtablecontrib)
     elif func == 'fillTable':
-      fillTable( buglev, inDigest, conn, cursor, wrapId, dbtablemodel)
+      fillTable( bugLev, archDir, conn, cursor, wrapId,
+        dbtablemodel, dbtablecontrib)
     else: throwerr('unknown func: "%s"' % (func,))
   finally:
     if cursor != None: cursor.close()
@@ -184,7 +203,7 @@ def fillDbVasp(
 
 
 def createTableModel(
-  buglev,
+  bugLev,
   conn,
   cursor,
   dbtablemodel):
@@ -194,37 +213,44 @@ def createTableModel(
 
   cursor.execute('''
     CREATE TABLE %s (
-      mident         serial,
-      wrapid         text,
-      path           text,
+      mident          serial,
+      wrapid          text,
+      path            text,
 
-      icsdNum        int,   -- ICSD number in CIF file: _database_code_ICSD
+      meta_firstname   text,     -- metadata: author first name
+      meta_lastname    text,     -- metadata: author last name
+      meta_publication text,     -- metadata: publication DOI or placeholder
+      meta_standards   text[],   -- metadata: controlled vocab keywords
+      meta_keywords    text[],   -- metadata: uncontrolled vocab keywords
+      meta_notes       text,     -- metadata: notes
 
-      magType        text,  -- type of magnetic moment:
-                            --   hsf:  hs-ferro.  magNum = 0.
-                            --   hsaf: hs-anti-ferro.  magNum = test num.
-                            --   lsf:  ls-ferro.  magNum = 0.
-                            --   lsaf: ls-anti-ferro.  magNum = test num.
-                            --   nm:   non-magnetic.  magNum = 0.
-      magNum         int,   -- number of hs-anti-ferro or ls-anti-ferro test.
+      icsdNum         int,   -- ICSD number in CIF file: _database_code_ICSD
 
-      relaxType      text,  -- Type of run:
-                            --   std: standard,
-                            --   rc:  relax_cellshape,
-                            --   ri:  relax_ions
-      relaxNum       int,   -- Folder num for rc or ri: 0, 1, ...
+      magType         text,  -- type of magnetic moment:
+                             --   hsf:  hs-ferro.  magNum = 0.
+                             --   hsaf: hs-anti-ferro.  magNum = test num.
+                             --   lsf:  ls-ferro.  magNum = 0.
+                             --   lsaf: ls-anti-ferro.  magNum = test num.
+                             --   nm:   non-magnetic.  magNum = 0.
+      magNum          int,   -- number of hs-anti-ferro or ls-anti-ferro test.
 
-      excMsg         text,  -- exception msg from digestVasp.py
-      excTrace       text,  -- exception trace from digestVasp.py
-                            -- If excMsg != None,
-                            -- all following fields are None.
+      relaxType       text,  -- Type of run:
+                             --   std: standard,
+                             --   rc:  relax_cellshape,
+                             --   ri:  relax_ions
+      relaxNum        int,   -- Folder num for rc or ri: 0, 1, ...
+
+      excMsg          text,  -- exception msg from readVasp.py
+      excTrace        text,  -- exception trace from readVasp.py
+                             -- If excMsg != None,
+                             -- all following fields are None.
 
       --- program, version, date etc ---
       runDate        timestamp,          -- 2013-03-11 10:07:01
       iterTotalTime  double precision,
       --- incar parameters ---
       systemName     text,               -- mos2_024000.cif
-      encut          double precision,   -- 252.
+      encut_ev       double precision,   -- eV
       ibrion         int,
       isif           int,
       --- kpoints ---
@@ -233,11 +259,11 @@ def createTableModel(
       numAtom        int,                -- == sum( typeNums)
       typeNames      text[],             -- ['Mo' 'S']
       typeNums       int[],              -- [2 4]
-      typeMasses     float[],
+      typeMasses_amu float[],
       typePseudos    text[],
       typeValences   int[],
       atomNames      text[],
-      atomMasses     float[],
+      atomMasses_amu float[],
       atomPseudos    text[],
       atomValences   int[],
 
@@ -254,25 +280,25 @@ def createTableModel(
       finalDirectPosMat       double precision[][],
 
       --- final volume and density ---
-      finalVolumeVasp         double precision,
-      density                 double precision,
+      finalVolumeVasp_ang3    double precision,
+      density_g_cm3           double precision,
 
       --- last calc forces ---
-      finalForceMat           double precision[][],
-      finalStressMat          double precision[][],
-      finalPressure           double precision,
+      finalForceMat_ev_ang         double precision[][],   -- eV/angstrom
+      finalStressMat_kbar          double precision[][],   -- kbar
+      finalPressure_kbar           double precision,       -- kbar
 
       --- eigenvalues and occupancies ---
       eigenMat                double precision[][],
 
       --- energy, efermi0 ---
-      finalEnergy    double precision,   -- -13.9
-      energyPerAtom  double precision,   -- -13.9
-      efermi0        double precision,   -- 5.93
+      energyNoEntrp    double precision,   -- eV
+      energyPerAtom  double precision,     -- eV
+      efermi0        double precision,     -- eV
       --- cbMin, vbMax, bandgap ---
-      cbMin          double precision,   -- 7.199
-      vbMax          double precision,   -- 5.8574
-      bandgap        double precision,   -- 1.3416
+      cbMin          double precision,     -- eV
+      vbMax          double precision,     -- eV
+      bandgap        double precision,     -- eV
 
       --- misc ---
       fileNames      text[],
@@ -286,136 +312,375 @@ def createTableModel(
     )
   ''' % (dbtablemodel,))
   conn.commit()
-  print 'fillDbVasp: table created'
+  print 'fillDbVasp: table \"%s\" created' % (dbtablemodel,)
 
+  ixName = '%s_mident_index' % (dbtablemodel,)
   cursor.execute('''
-    CREATE INDEX %s_mident_index ON %s (mident)
-  ''' % (dbtablemodel, dbtablemodel,))
+    CREATE INDEX %s ON %s (mident)
+  ''' % (ixName, dbtablemodel,))
   conn.commit()
-  print 'fillDbVasp: index created'
+  print 'fillDbVasp: index \"%s\" created' % (ixName,)
+
 
 
 
 #====================================================================
 
 
+
+def createTableContrib(
+  bugLev,
+  conn,
+  cursor,
+  dbtablecontrib):
+
+  cursor.execute('drop table if exists %s' % (dbtablecontrib,))
+  conn.commit()
+
+  cursor.execute('''
+    CREATE TABLE %s (
+      wrapid       text,
+      curdate      timestamp,
+      userid       text,
+      hostname     text,
+      numincar     int,
+      numoutcar    int,
+      numvasprun   int,
+      uploaddir    text,
+      overview     text
+    )
+  ''' % (dbtablecontrib,))
+  conn.commit()
+
+  print 'fillDbVasp: table \"%s\" created' % (dbtablecontrib,)
+
+#====================================================================
+
+
 def fillTable(
-  buglev,
-  inDigest,
+  bugLev,
+  archDir,
+  conn,
+  cursor,
+  wrapId,
+  dbtablemodel,
+  dbtablecontrib):
+
+  if bugLev >= 1:
+    print 'fillTable: archDir: %s' % (archDir,)
+    print 'fillTable: wrapId: %s' % (wrapId,)
+
+  if not os.path.isdir( archDir):
+    throwerr('archDir is not a dir: "%s"' % (archDir,))
+
+  subNames = os.listdir( archDir)
+  subNames.sort()
+
+  digestDir = os.path.join( archDir, wrapUpload.digestDirName)
+  jFile = os.path.join( digestDir, wrapUpload.overviewJsonName)
+  wrapUpload.checkFileFull( jFile)
+  with open( jFile) as fin:
+    overMap = json.load( fin)
+
+  if bugLev >= 1:
+    keys = overMap.keys()
+    keys.sort()
+    for key in keys:
+      print '  fillTable: overMap[%s]: %s' % (key, overMap[key],)
+
+  # Avoid duplicate rows if reprocessing data
+  cursor.execute(
+    'delete from ' + dbtablecontrib + ' where wrapid = %s',
+    (wrapId,)
+  )
+  cursor.execute(
+    'delete from ' + dbtablemodel + ' where wrapid = %s',
+    (wrapId,)
+  )
+  conn.commit()
+
+
+  # Add rows to model table
+  subPath = '.'
+  fillTableSub(
+    bugLev,
+    overMap,
+    overMap['uploadDir'],       # origDir
+    archDir,
+    subPath,
+    conn,
+    cursor,
+    wrapId,
+    dbtablemodel)
+
+
+  # Add one row to the contrib table
+  # Coord with wrapUpload.py main
+  cursor.execute(
+    '''
+      insert into
+    '''
+    + dbtablecontrib + 
+    ''' (
+        wrapid,
+        curdate,
+        userid,
+        hostname,
+        numincar,
+        numoutcar,
+        numvasprun,
+        uploaddir,
+        overview)
+        values (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    ''',
+    (
+      wrapId,
+      overMap['curDate'],
+      overMap['userId'],
+      overMap['hostName'],
+      overMap['numIncar'],
+      overMap['numOutcar'],
+      overMap['numVasprun'],
+      overMap['uploadDir'],
+      overMap['overview'],
+  ))
+  
+  conn.commit()
+
+
+#====================================================================
+
+
+def fillTableSub(
+  bugLev,
+  overMap,
+  origDir,
+  archDir,
+  subPath,
   conn,
   cursor,
   wrapId,
   dbtablemodel):
 
-  if not os.path.isfile(inDigest):
-    throwerr('inDigest is not a file: "%s"' % (inDigest,))
+  if bugLev >= 1:
+    print 'fillTableSub: origDir: %s' % (origDir,)
+    print 'fillTableSub: archDir: %s' % (archDir,)
+    print 'fillTableSub: subPath: %s' % (subPath,)
+    print 'fillTableSub: wrapId: %s' % (wrapId,)
 
-  with open( inDigest) as fin:
-    resList = cPickle.load( fin)
+  ourFullPath = os.path.join( archDir, subPath)
+  if not os.path.isdir( ourFullPath):
+    throwerr('archDir is not a dir: "%s"' % (ourFullPath,))
 
-  for resObj in resList:
-    print 'fillDbTable: adding realPath: %s ...' \
-      % (getattr( resObj, 'realPath', None),),
+  subNames = os.listdir( ourFullPath)
+  subNames.sort()
 
-    typeNums = getattr( resObj, 'typeNums', None)
-    numAtom = None
-    if typeNums != None: numAtom = sum( typeNums)
+  if wrapUpload.metadataName in subNames:
+    fillDbRow( bugLev, overMap, origDir, archDir,
+      subPath, conn, cursor, wrapId, dbtablemodel)
 
-    finalEnergyWithout = getattr( resObj, 'finalEnergyWithout', None)
-    energyPerAtom = None
-    if numAtom != None and finalEnergyWithout != None:
-      energyPerAtom = finalEnergyWithout / numAtom
+  # Recursion on subdirs
+  for nm in subNames:
+    newSubPath = os.path.join( subPath, nm)
+    if os.path.isdir( newSubPath):
+      fillTableSub(
+        bugLev,
+        overMap,
+        origDir,
+        archDir,
+        newSubPath,
+        conn,
+        cursor,
+        wrapId,
+        dbtablemodel)
 
-    cursor.execute(
-      '''
-        insert into
-      '''
-      + dbtablemodel + 
-      ''' (
-          wrapid, path, icsdNum, magType, magNum,
-          relaxType, relaxNum,
-          excMsg, excTrace,
-          runDate, iterTotalTime,
-          systemName, encut, ibrion, isif,
-          numAtom, typeNames, typeNums, typeMasses, typePseudos, typeValences,
-          atomNames, atomMasses, atomPseudos, atomValences,
 
-          initialBasisMat,
-          initialRecipBasisMat,
-          initialCartesianPosMat,
-          initialDirectPosMat,
 
-          finalBasisMat,
-          finalRecipBasisMat,
-          finalCartesianPosMat,
-          finalDirectPosMat,
 
-          finalVolumeVasp,
-          density,
-          finalForceMat,
-          finalStressMat,
-          finalPressure,
-          eigenMat,
-          finalEnergy,
-          energyPerAtom,
-          efermi0,
-          cbMin, vbMax, bandgap,
-          fileNames, fileSizes)
-        values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-      ''',
-      ( wrapId,
-        getattr( resObj, 'realPath', None),
-        getattr( resObj, 'icsdNum', None),
-        getattr( resObj, 'magType', None),
-        getattr( resObj, 'magNum', None),
-        getattr( resObj, 'relaxType', None),
-        getattr( resObj, 'relaxNum', None),
-        getattr( resObj, 'excMsg', None),
-        getattr( resObj, 'excTrace', None),
-        getattr( resObj, 'runDate', None),
-        getattr( resObj, 'iterTotalTime', None),
-        getattr( resObj, 'systemName', None),
-        getattr( resObj, 'encut', None),
-        getattr( resObj, 'ibrion', None),
-        getattr( resObj, 'isif', None),
-        numAtom,
-        getattr( resObj, 'typeNames', None),
-        getattr( resObj, 'typeNums', None),
-        getattr( resObj, 'typeMasses', None),
-        getattr( resObj, 'typePseudos', None),
-        getattr( resObj, 'typeValences', None),
-        getattr( resObj, 'atomNames', None),
-        getattr( resObj, 'atomMasses', None),
-        getattr( resObj, 'atomPseudos', None),
-        getattr( resObj, 'atomValences', None),
 
-        getattr( resObj, 'initialBasisMat', None),
-        getattr( resObj, 'initialRecipBasisMat', None),
-        getattr( resObj, 'initialCartesianPosMat', None),
-        getattr( resObj, 'initialDirectPosMat', None),
+#xxx all print, all xxx
+#xxx del digest*
+#xxx make sure we can repeatedly upload one dir.
 
-        getattr( resObj, 'finalBasisMat', None),
-        getattr( resObj, 'finalRecipBasisMat', None),
-        getattr( resObj, 'finalCartesianPosMat', None),
-        getattr( resObj, 'finalDirectPosMat', None),
 
-        getattr( resObj, 'finalVolumeVasp', None),
-        getattr( resObj, 'density', None),
-        getattr( resObj, 'finalForceMat', None),
-        getattr( resObj, 'finalStressMat', None),
-        getattr( resObj, 'finalPressure', None),
-        getattr( resObj, 'eigenMat', None),
-        getattr( resObj, 'finalEnergyWithout', None),
+#====================================================================
+
+
+
+def fillDbRow(
+  bugLev,
+  overMap,
+  origDir,
+  archDir,
+  subPath,
+  conn,
+  cursor,
+  wrapId,
+  dbtablemodel):
+
+  if bugLev >= 1:
+    print 'fillDbRow: archDir: %s' % (archDir,)
+    print 'fillDbRow: wrapId: %s' % (wrapId,)
+
+  print 'fillDbRow: adding subPath: %s' % ( subPath,)
+
+  origFullPath = os.path.join( origDir, subPath)
+  ourFullPath = os.path.join( archDir, subPath)
+  if bugLev >= 5:
+    print 'fillDbRow: origFullPath: %s' % (origFullPath,)
+    print 'fillDbRow: ourFullPath: %s' % (ourFullPath,)
+
+  ourJsonPath = os.path.join( ourFullPath, wrapUpload.wrapUploadJsonName)
+  if bugLev >= 5: print 'fillDbRow: ourJsonPath: %s' % (ourJsonPath,)
+
+  wrapUpload.checkFileFull( ourJsonPath)
+  with open( ourJsonPath) as fin:
+    smallMap = json.load( fin)
+
+  keys = smallMap.keys()
+  keys.sort()
+  for key in keys:
+    print '  fillTableSub: smallMap[%s]: %s' % (key, smallMap[key],)
+
+  readType = 'xml'
+  vaspObj = readVasp.parseDir( bugLev, readType, ourFullPath, -1)  # print = -1
+  if bugLev >= 5:
+    keys = smallMap.keys()
+    keys.sort()
+    print 'fillDbRow: smallMap keys: %s' % (keys,)
+
+  typeNums = getattr( vaspObj, 'typeNums', None)
+  numAtom = None
+  if typeNums != None: numAtom = sum( typeNums)
+
+  energyNoEntrp = getattr( vaspObj, 'energyNoEntrp', None)
+  energyPerAtom = None
+  if numAtom != None and energyNoEntrp != None:
+    energyPerAtom = energyNoEntrp / numAtom
+
+  ## Avoid duplicate rows if reprocessing data
+  #cursor.execute(
+  #  'delete from ' + dbtablemodel
+  #    + ' where wrapid = %s and path = %s and icsdnum = %s'
+  #    + ' and magtype = %s and magnum = %s'
+  #    + ' and relaxType = %s and relaxNum = %s'
+  #    + ' and runDate = %s and iterTotalTime = %s'
+  #    + ' and systemName = %s',
+  #  (wrapid, path, icsdNum, magType, magNum,
+  #  relaxTtype, relaxNum, runDate, iterTotalTime, systemName,)
+  #)
+  #conn.commit()
+
+  cursor.execute(
+    '''
+      insert into
+    '''
+    + dbtablemodel + 
+    ''' (
+        wrapid,
+        path,
+
+        meta_firstname,    -- metadata: author first name
+        meta_lastname,     -- metadata: author last name
+        meta_publication,  -- metadata: publication DOI or placeholder
+        meta_standards,    -- metadata: controlled vocab keywords
+        meta_keywords,     -- metadata: uncontrolled vocab keywords
+        meta_notes,        -- metadata: notes
+
+        icsdNum, magType, magNum,
+        relaxType, relaxNum,
+        excMsg, excTrace,
+        runDate, iterTotalTime,
+        systemName, encut_ev, ibrion, isif,
+        numAtom, typeNames, typeNums, typeMasses_amu,
+        typePseudos, typeValences,
+        atomNames, atomMasses_amu, atomPseudos, atomValences,
+
+        initialBasisMat,
+        initialRecipBasisMat,
+        initialCartesianPosMat,
+        initialDirectPosMat,
+
+        finalBasisMat,
+        finalRecipBasisMat,
+        finalCartesianPosMat,
+        finalDirectPosMat,
+
+        finalVolumeVasp_ang3,
+        density_g_cm3,
+        finalForceMat_ev_ang,
+        finalStressMat_kbar,
+        finalPressure_kbar,
+        eigenMat,
+        energyNoEntrp,
         energyPerAtom,
-        getattr( resObj, 'efermi0', None),
-        getattr( resObj, 'cbMin', None),
-        getattr( resObj, 'vbMax', None),
-        getattr( resObj, 'bandgap', None),
-        getattr( resObj, 'fileNames', None),
-        getattr( resObj, 'fileSizes', None),
-      ))
-    conn.commit()
-    print ' done'
+        efermi0,
+        cbMin, vbMax, bandgap,
+        fileNames, fileSizes)
+      values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+    ''',
+    ( wrapId,
+      origFullPath,
+
+      smallMap['meta_firstName'],
+      smallMap['meta_lastName'],
+      smallMap['meta_publication'],
+      smallMap['meta_standards'],
+      smallMap['meta_keywords'],
+      smallMap['meta_notes'],
+
+      smallMap['icsdNum'],
+      smallMap['magType'],
+      smallMap['magNum'],
+      smallMap['relaxType'],
+      smallMap['relaxNum'],
+
+      vaspObj.excMsg,
+      vaspObj.excTrace,
+
+      getattr( vaspObj, 'runDate', None),
+      getattr( vaspObj, 'iterTotalTime', None),
+      getattr( vaspObj, 'systemName', None),
+      getattr( vaspObj, 'encut_ev', None),
+      getattr( vaspObj, 'ibrion', None),
+      getattr( vaspObj, 'isif', None),
+      numAtom,
+      getattr( vaspObj, 'typeNames', None),
+      getattr( vaspObj, 'typeNums', None),
+      getattr( vaspObj, 'typeMasses_amu', None),
+      getattr( vaspObj, 'typePseudos', None),
+      getattr( vaspObj, 'typeValences', None),
+      getattr( vaspObj, 'atomNames', None),
+      getattr( vaspObj, 'atomMasses_amu', None),
+      getattr( vaspObj, 'atomPseudos', None),
+      getattr( vaspObj, 'atomValences', None),
+
+      getattr( vaspObj, 'initialBasisMat', None),
+      getattr( vaspObj, 'initialRecipBasisMat', None),
+      getattr( vaspObj, 'initialCartesianPosMat', None),
+      getattr( vaspObj, 'initialDirectPosMat', None),
+
+      getattr( vaspObj, 'finalBasisMat', None),
+      getattr( vaspObj, 'finalRecipBasisMat', None),
+      getattr( vaspObj, 'finalCartesianPosMat', None),
+      getattr( vaspObj, 'finalDirectPosMat', None),
+
+      getattr( vaspObj, 'finalVolumeVasp_ang3', None),
+      getattr( vaspObj, 'density_g_cm3', None),
+      getattr( vaspObj, 'finalForceMat_ev_ang', None),
+      getattr( vaspObj, 'finalStressMat_kbar', None),
+      getattr( vaspObj, 'finalPressure_kbar', None),
+      getattr( vaspObj, 'eigenMat', None),
+      getattr( vaspObj, 'energyNoEntrp', None),
+      energyPerAtom,
+      getattr( vaspObj, 'efermi0', None),
+      getattr( vaspObj, 'cbMin', None),
+      getattr( vaspObj, 'vbMax', None),
+      getattr( vaspObj, 'bandgap', None),
+      getattr( vaspObj, 'fileNames', None),
+      getattr( vaspObj, 'fileSizes', None),
+  ))
+  conn.commit()
 
 #====================================================================
 
@@ -468,6 +733,9 @@ def formatArraySub( val):
 
 
 #====================================================================
+
+
+
 
 def throwerr( msg):
   print msg
