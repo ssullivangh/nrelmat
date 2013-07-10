@@ -6,6 +6,7 @@ import psutil
 import psycopg2
 import fillDbVasp
 import augmentDb
+import wrapUpload
 
 
 
@@ -16,8 +17,14 @@ def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
   print ''
-  print '  -buglev     <int>      debug level'
+  print '  -bugLev     <int>      debug level'
   print '  -func       <string>   readIncoming / redoArch'
+  print '  -inDir      <string>   Input dir for uploaded files.'
+  print '  -archDir    <string>   Dir used for work and archiving.'
+  print '  -logFile    <string>   Log file name.'
+  print '  -inSpec     <string>   inSpecJsonFile'
+  print '  -archDir    <string>   dir for archiving'
+  print '  -inSpec     <string>   inSpecJsonFile'
   print '  -inSpec     <string>   inSpecJsonFile'
   sys.exit(1)
 
@@ -39,8 +46,11 @@ def main():
   =============   =========    ==============================================
   Parameter       Type         Description
   =============   =========    ==============================================
-  **-buglev**     integer      Debug level.  Normally 0.
+  **-bugLev**     integer      Debug level.  Normally 0.
   **-func**       string       Function.  See below.
+  **-inDir**      string       Input dir for uploaded files.
+  **-archDir**    string       Dir used for work and archiving.
+  **-logFile**    string       Log file name.
   **-inSpec**     string       JSON file containing parameters.  See below.
   =============   =========    ==============================================
 
@@ -69,9 +79,6 @@ def main():
   ===================    ==============================================
   Parameter              Description
   ===================    ==============================================
-  **inDir**              Input dir for uploaded files.
-  **archDir**            Dir used for work and archiving.
-  **logFile**            Log file name.
   **dbhost**             Database hostname.
   **dbport**             Database port number.
   **dbuser**             Database user name.
@@ -85,9 +92,6 @@ def main():
   **inSpec file example:**::
 
     {
-      "inDir"          : "/home/scpuser/incoming",
-      "archDir"        : "/home/ciduser/arch",
-      "logFile"        : "wrapReceive.log",
       "dbhost"         : "scctest",
       "dbport"         : "6432",
       "dbuser"         : "x",
@@ -100,62 +104,38 @@ def main():
 
   '''
 
-  buglev = None
+  bugLev = None
   func = None
+  inDir = None
+  archDir = None
+  logFile = None
   inSpec = None
-  note = None
 
   if len(sys.argv) % 2 != 1:
     badparms('Parms must be key/value pairs')
   for iarg in range( 1, len(sys.argv), 2):
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
-    if key == '-buglev': buglev = int( val)
+    if key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
+    elif key == '-inDir': inDir = val
+    elif key == '-archDir': archDir = val
+    elif key == '-logFile': logFile = val
     elif key == '-inSpec': inSpec = val
-    elif key == '-note': note = val
     else: badparms('unknown key: "%s"' % (key,))
 
-  if buglev == None: badparms('parm not specified: -buglev')
+  if bugLev == None: badparms('parm not specified: -bugLev')
   if func == None: badparms('parm not specified: -func')
+  if inDir == None: badparms('parm not specified: -inDir')
+  if archDir == None: badparms('parm not specified: -archDir')
+  if logFile == None: badparms('parm not specified: -logFile')
   if inSpec == None: badparms('parm not specified: -inSpec')
-  if note == None: badparms('parm not specified: -note')
 
-  with open( inSpec) as fin:
-    specMap = json.load( fin)
-
-  inDir    = specMap.get('inDir', None)
-  archDir  = specMap.get('archDir', None)
-  logFile  = specMap.get('logFile', None)
-  dbhost   = specMap.get('dbhost', None)
-  dbport   = specMap.get('dbport', None)
-  dbuser   = specMap.get('dbuser', None)
-  dbpswd   = specMap.get('dbpswd', None)
-  dbname   = specMap.get('dbname', None)
-  dbschema = specMap.get('dbschema', None)
-  dbtablecontrib = specMap.get('dbtablecontrib', None)
-  dbtablemodel   = specMap.get('dbtablemodel', None)
-
-  if inDir == None:    badparms('inSpec name not found: inDir')
-  if archDir == None:  badparms('inSpec name not found: archDir')
-  if logFile == None:  badparms('inSpec name not found: logFile')
-  if dbhost == None:   badparms('inSpec name not found: dbhost')
-  if dbport == None:   badparms('inSpec name not found: dbport')
-  if dbuser == None:   badparms('inSpec name not found: dbuser')
-  if dbpswd == None:   badparms('inSpec name not found: dbpswd')
-  if dbname == None:   badparms('inSpec name not found: dbname')
-  if dbschema == None: badparms('inSpec name not found: dbschema')
-
-xxx del all dbtablecontrib, etc?
-  if dbtablecontrib == None: badparms('inSpec name not found: dbtablecontrib')
-
-  if dbtablemodel   == None: badparms('inSpec name not found: dbtablemodel')
-  dbport = int( dbport)
-
-
-  # Quit if there's a duplicate process already running.
-  print 'xxxxxxxxxxxx checkDupProcs omitted'
-  ##checkDupProcs()
+  print 'wrapReceive: func: %s' % (func,)
+  print 'wrapReceive: inDir: %s' % (inDir,)
+  print 'wrapReceive: archDir: %s' % (archDir,)
+  print 'wrapReceive: logFile: %s' % (logFile,)
+  print 'wrapReceive: inSpec: %s' % (inSpec,)
 
   inDirPath = os.path.abspath( inDir)
   archDirPath = os.path.abspath( archDir)
@@ -164,8 +144,14 @@ xxx del all dbtablecontrib, etc?
     throwerr('inDir is not a dir: %s' % (inDirPath,))
   if not os.path.isdir( archDirPath):
     throwerr('archDir is not a dir: %s' % (archDirPath,))
+
   flog = open( logPath, 'a')
   # xxx use flog
+
+
+  # Quit if there's a duplicate process already running.
+  checkDupProcs()
+
 
   # Coord with uui in wrapUpload.sh
   uuiPattern = r'^(arch\.(\d{4}\.\d{2}\.\d{2})\.tm\.(\d{2}\.\d{2}\.\d{2}\.\d{6})\.user\.(.*)\.host\.(.*)\.digest)'
@@ -174,7 +160,8 @@ xxx del all dbtablecontrib, etc?
   if func == 'readIncoming':
     while True:
 
-      if buglev >= 1: logit('main: checking inDirPath: %s' % (inDirPath,))
+      if bugLev >= 1:
+        wrapUpload.logit('main: checking inDirPath: %s' % (inDirPath,))
       fnames = os.listdir( inDirPath)
       fnames.sort()
       for fname in fnames:
@@ -185,23 +172,21 @@ xxx del all dbtablecontrib, etc?
           timeStg = mat.group(3)
           userid = mat.group(4)
           hostname = mat.group(5)
-          if buglev >= 1: logit('main: wrapId: %s' % (wrapId,))
+          if bugLev >= 1: wrapUpload.logit('main: wrapId: %s' % (wrapId,))
           excArgs = None
           try: 
             gatherArchive(
-              buglev, inDirPath, archDirPath,
-              wrapId, dateStg, timeStg, userid, hostname, inSpec, note,
-              dbhost, dbport, dbuser, dbpswd, dbname,
-              dbschema, dbtablecontrib)
+              bugLev, inDirPath, archDirPath,
+              wrapId, dateStg, timeStg, userid, hostname, inSpec)
           except Exception, exc:
             excArgs = exc.args
-            logit('caught: %s' % (excArgs,))
-            logit(traceback.format_exc( limit=None))
+            wrapUpload.logit('caught: %s' % (excArgs,))
+            wrapUpload.logit(traceback.format_exc( limit=None))
 
           if excArgs == None:
-            logit('archived %s' % (wrapId,))
+            wrapUpload.logit('archived %s' % (wrapId,))
           else:
-            logit('error for %s: %s' % (wrapId, excArgs,))
+            wrapUpload.logit('error for %s: %s' % (wrapId, excArgs,))
             throwerr( str(excArgs))
 
       time.sleep(10)
@@ -218,24 +203,22 @@ xxx del all dbtablecontrib, etc?
         timeStg = mat.group(3)
         userid = mat.group(4)
         hostname = mat.group(5)
-        if buglev >= 1: logit('main: wrapId: %s' % (wrapId,))
+        if bugLev >= 1: wrapUpload.logit('main: wrapId: %s' % (wrapId,))
         subDir = os.path.join( archDirPath, wrapId)
         excArgs = None
         try: 
           processTree(
-            buglev, subDir, wrapId, dateStg, timeStg,
-            userid, hostname, inSpec, note,
-            dbhost, dbport, dbuser, dbpswd, dbname,
-            dbschema, dbtablecontrib)
+            bugLev, subDir, wrapId, dateStg, timeStg,
+            userid, hostname, inSpec)
         except Exception, exc:
           excArgs = exc.args
-          logit('caught: %s' % (excArgs,))
-          logit(traceback.format_exc( limit=None))
+          wrapUpload.logit('caught: %s' % (excArgs,))
+          wrapUpload.logit(traceback.format_exc( limit=None))
 
         if excArgs == None:
-          logit('archived %s' % (wrapId,))
+          wrapUpload.logit('archived %s' % (wrapId,))
         else:
-          logit('error for %s: %s' % (wrapId, excArgs,))
+          wrapUpload.logit('error for %s: %s' % (wrapId, excArgs,))
           throwerr( str(excArgs))
 
   else: badparms('invalid func')
@@ -245,21 +228,14 @@ xxx del all dbtablecontrib, etc?
 
 #====================================================================
 
-
-
-#====================================================================
-
-
 def gatherArchive(
-  buglev, inDirPath, archDirPath,
-  wrapId, dateStg, timeStg, userid, hostname, inSpec, note,
-  dbhost, dbport, dbuser, dbpswd, dbname,
-  dbschema, dbtablecontrib):
+  bugLev, inDirPath, archDirPath,
+  wrapId, dateStg, timeStg, userid, hostname, inSpec):
 
-  if buglev >= 1:
-    logit('gatherArchive: inDirPath: %s' % (inDirPath,))
-    logit('gatherArchive: archDirPath: %s' % (archDirPath,))
-    logit('gatherArchive: wrapId: %s' % (wrapId,))
+  if bugLev >= 1:
+    wrapUpload.logit('gatherArchive: inDirPath: %s' % (inDirPath,))
+    wrapUpload.logit('gatherArchive: archDirPath: %s' % (archDirPath,))
+    wrapUpload.logit('gatherArchive: wrapId: %s' % (wrapId,))
 
   # Check paths
   archPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.tgz'))
@@ -284,10 +260,8 @@ def gatherArchive(
   wrapUpload.runSubprocess( bugLev, subDir, args)
 
   processTree(
-    buglev, subDir, wrapId, dateStg, timeStg,
-    userid, hostname, inSpec, note,
-    dbhost, dbport, dbuser, dbpswd, dbname,
-    dbschema, dbtablecontrib)
+    bugLev, subDir, wrapId, dateStg, timeStg,
+    userid, hostname, inSpec)
 
 
 
@@ -296,56 +270,28 @@ def gatherArchive(
 
 
 def processTree(
-  buglev, subDir, wrapId, dateStg, timeStg,
-  userid, hostname, inSpec, note,
-  dbhost, dbport, dbuser, dbpswd, dbname,
-  dbschema, dbtablecontrib):
+  bugLev, subDir, wrapId, dateStg, timeStg,
+  userid, hostname, inSpec):
 
   # Get adate
   adate = datetime.datetime.strptime(
     dateStg + ' ' + timeStg, '%Y.%m.%d %H.%M.%S.%f')
-  if buglev >= 1:
-    logit('processTree: wrapId: %s' % (wrapId,))
-    logit('processTree: subDir: %s' % (subDir,))
-    logit('processTree: adate: %s' % (adate,))
-    logit('processTree: userid: "%s"' % (userid,))
-    logit('processTree: hostname: "%s"' % (hostname,))
+  if bugLev >= 1:
+    wrapUpload.logit('processTree: wrapId: %s' % (wrapId,))
+    wrapUpload.logit('processTree: subDir: %s' % (subDir,))
+    wrapUpload.logit('processTree: adate: %s' % (adate,))
+    wrapUpload.logit('processTree: userid: "%s"' % (userid,))
+    wrapUpload.logit('processTree: hostname: "%s"' % (hostname,))
 
-xxxxxxxxxxx
-  print 'xxxxxxxxxxxxxxxxxxxxxxxxxxxx skip fillDbVasp xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-  #fillDbVasp.fillDbVasp(
-  #  buglev,
-  #  'fillTable',     # func
-  #  subDir,
-  #  wrapId,
-  #  inSpec)
-
+  fillDbVasp.fillDbVasp(
+    bugLev,
+    'fillTable',     # func
+    subDir,
+    wrapId,
+    inSpec)
 
   # Fill in additional columns in the model table
-  augmentDb.augmentDb( buglev, wrapId, inSpec)
-
-xxxxxxxxx del:
-  # Update contrib table
-  conn = None
-  cursor = None
-  try:
-    conn = psycopg2.connect(
-      host=dbhost,
-      port=dbport,
-      user=dbuser,
-      password=dbpswd,
-      database=dbname)
-    cursor = conn.cursor()
-    cursor.execute('set search_path to %s' % (dbschema,))
-    cursor.execute('insert into ' + dbtablecontrib
-      + ' (wrapid,adate,userid,hostname,numincar,numvasprun,'
-      + 'numoutcar,description) values (%s,%s,%s,%s,%s,%s,%s,%s)',
-      (wrapId, adate, userid, hostname, numIncar,
-        numVasprun, numOutcar, desc,))
-    conn.commit()
-  finally:
-    if cursor != None: cursor.close()
-    if conn != None: conn.close()
+  augmentDb.augmentDb( bugLev, wrapId, inSpec)
 
 
 #====================================================================

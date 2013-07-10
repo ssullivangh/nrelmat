@@ -215,14 +215,9 @@ def createTableModel(
     CREATE TABLE %s (
       mident          serial,
       wrapid          text,
-      path            text,
-
-      meta_firstname   text,     -- metadata: author first name
-      meta_lastname    text,     -- metadata: author last name
-      meta_publication text,     -- metadata: publication DOI or placeholder
-      meta_standards   text[],   -- metadata: controlled vocab keywords
-      meta_keywords    text[],   -- metadata: uncontrolled vocab keywords
-      meta_notes       text,     -- metadata: notes
+      abspath         text,
+      relpath         text,
+      statmapjson     text,
 
       icsdNum         int,   -- ICSD number in CIF file: _database_code_ICSD
 
@@ -300,10 +295,6 @@ def createTableModel(
       vbMax          double precision,     -- eV
       bandgap        double precision,     -- eV
 
-      --- misc ---
-      fileNames      text[],
-      fileSizes      text[],
-
       --- columns filled by augmentDb.py ---
       isminenergy    boolean,
       chemsum        text,              -- 'H2 O'
@@ -343,11 +334,28 @@ def createTableContrib(
       curdate      timestamp,
       userid       text,
       hostname     text,
-      numincar     int,
-      numoutcar    int,
-      numvasprun   int,
       uploaddir    text,
-      overview     text
+      reldirs      text[],
+      archpaths    text[],
+      fnd_incar    int,
+      tot_incar    int,
+      fnd_kpoints    int,
+      tot_kpoints    int,
+      fnd_poscar    int,
+      tot_poscar    int,
+      fnd_potcar    int,
+      tot_potcar    int,
+      fnd_outcar    int,
+      tot_outcar    int,
+      fnd_vasprun    int,
+      tot_vasprun    int,
+      meta_firstname   text,     -- metadata: author first name
+      meta_lastname    text,     -- metadata: author last name
+      meta_publication text,     -- metadata: publication DOI or placeholder
+      meta_standards   text[],   -- metadata: controlled vocab keywords
+      meta_keywords    text[],   -- metadata: uncontrolled vocab keywords
+      meta_notes       text,     -- metadata: notes
+      meta_omit        text[]    -- metadata: omit patterns
     )
   ''' % (dbtablecontrib,))
   conn.commit()
@@ -356,6 +364,9 @@ def createTableContrib(
 
 #====================================================================
 
+
+# Add rows to the model table.
+# Add one row to the contrib table.
 
 def fillTable(
   bugLev,
@@ -377,16 +388,18 @@ def fillTable(
   subNames.sort()
 
   digestDir = os.path.join( archDir, wrapUpload.digestDirName)
-  jFile = os.path.join( digestDir, wrapUpload.overviewJsonName)
+  jFile = os.path.join( digestDir, wrapUpload.overMapFile)
   wrapUpload.checkFileFull( jFile)
   with open( jFile) as fin:
     overMap = json.load( fin)
 
+  metaMap = overMap['metaMap']
+  miscMap = overMap['miscMap']
+
   if bugLev >= 1:
-    keys = overMap.keys()
-    keys.sort()
-    for key in keys:
-      print '  fillTable: overMap[%s]: %s' % (key, overMap[key],)
+    printMap('fillTable: overMap', overMap, 30)
+    printMap('fillTable: metaMap', metaMap, 30)
+    printMap('fillTable: miscMap', miscMap, 30)
 
   # Avoid duplicate rows if reprocessing data
   cursor.execute(
@@ -399,23 +412,17 @@ def fillTable(
   )
   conn.commit()
 
-
-  # Add rows to model table
-  subPath = '.'
+  # Add rows to the model table.
   fillTableSub(
     bugLev,
-    overMap,
-    overMap['uploadDir'],       # origDir
     archDir,
-    subPath,
     conn,
     cursor,
     wrapId,
     dbtablemodel)
 
-
-  # Add one row to the contrib table
-  # Coord with wrapUpload.py main
+  # Add one row to the contrib table.
+  # Coord with wrapUpload.py main.
   cursor.execute(
     '''
       insert into
@@ -426,23 +433,60 @@ def fillTable(
         curdate,
         userid,
         hostname,
-        numincar,
-        numoutcar,
-        numvasprun,
         uploaddir,
-        overview)
-        values (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        reldirs,
+        archpaths,
+        fnd_incar,
+        tot_incar,
+        fnd_kpoints,
+        tot_kpoints,
+        fnd_poscar,
+        tot_poscar,
+        fnd_potcar,
+        tot_potcar,
+        fnd_outcar,
+        tot_outcar,
+        fnd_vasprun,
+        tot_vasprun,
+        meta_firstname,    -- metadata: author first name
+        meta_lastname,     -- metadata: author last name
+        meta_publication,  -- metadata: publication DOI or placeholder
+        meta_standards,    -- metadata: controlled vocab keywords
+        meta_keywords,     -- metadata: uncontrolled vocab keywords
+        meta_notes,        -- metadata: notes
+        meta_omit)         -- metadata: omit patterns
+
+        values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     ''',
     (
       wrapId,
       overMap['curDate'],
       overMap['userId'],
       overMap['hostName'],
-      overMap['numIncar'],
-      overMap['numOutcar'],
-      overMap['numVasprun'],
       overMap['uploadDir'],
-      overMap['overview'],
+      overMap['relDirs'],
+      overMap['archPaths'],
+
+      miscMap['fnd_INCAR'],
+      miscMap['tot_INCAR'],
+      miscMap['fnd_KPOINTS'],
+      miscMap['tot_KPOINTS'],
+      miscMap['fnd_POSCAR'],
+      miscMap['tot_POSCAR'],
+      miscMap['fnd_POTCAR'],
+      miscMap['tot_POTCAR'],
+      miscMap['fnd_OUTCAR'],
+      miscMap['tot_OUTCAR'],
+      miscMap['fnd_vasprun.xml'],
+      miscMap['tot_vasprun.xml'],
+
+      metaMap['firstName'],
+      metaMap['lastName'],
+      metaMap['publication'],
+      metaMap['standards'],
+      metaMap['keywords'],
+      metaMap['notes'],
+      metaMap['omit'],
   ))
   
   conn.commit()
@@ -451,44 +495,36 @@ def fillTable(
 #====================================================================
 
 
+# Add rows to the model table.
+
 def fillTableSub(
   bugLev,
-  overMap,
-  origDir,
-  archDir,
-  subPath,
+  inDir,
   conn,
   cursor,
   wrapId,
   dbtablemodel):
 
   if bugLev >= 1:
-    print 'fillTableSub: origDir: %s' % (origDir,)
-    print 'fillTableSub: archDir: %s' % (archDir,)
-    print 'fillTableSub: subPath: %s' % (subPath,)
     print 'fillTableSub: wrapId: %s' % (wrapId,)
+    print 'fillTableSub: inDir: %s' % (inDir,)
 
-  ourFullPath = os.path.join( archDir, subPath)
-  if not os.path.isdir( ourFullPath):
-    throwerr('archDir is not a dir: "%s"' % (ourFullPath,))
+  if not os.path.isdir( inDir):
+    throwerr('inDir is not a dir: "%s"' % (inDir,))
 
-  subNames = os.listdir( ourFullPath)
+  subNames = os.listdir( inDir)
   subNames.sort()
 
-  if wrapUpload.metadataName in subNames:
-    fillDbRow( bugLev, overMap, origDir, archDir,
-      subPath, conn, cursor, wrapId, dbtablemodel)
+  if wrapUpload.smallMapFile in subNames:
+    fillDbRow( bugLev, inDir, conn, cursor, wrapId, dbtablemodel)
 
   # Recursion on subdirs
   for nm in subNames:
-    newSubPath = os.path.join( subPath, nm)
-    if os.path.isdir( newSubPath):
+    subPath = os.path.join( inDir, nm)
+    if os.path.isdir( subPath):
       fillTableSub(
         bugLev,
-        overMap,
-        origDir,
-        archDir,
-        newSubPath,
+        subPath,
         conn,
         cursor,
         wrapId,
@@ -509,9 +545,6 @@ def fillTableSub(
 
 def fillDbRow(
   bugLev,
-  overMap,
-  origDir,
-  archDir,
   subPath,
   conn,
   cursor,
@@ -519,31 +552,23 @@ def fillDbRow(
   dbtablemodel):
 
   if bugLev >= 1:
-    print 'fillDbRow: archDir: %s' % (archDir,)
     print 'fillDbRow: wrapId: %s' % (wrapId,)
+    print 'fillDbRow: subPath: %s' % (subPath,)
 
   print 'fillDbRow: adding subPath: %s' % ( subPath,)
 
-  origFullPath = os.path.join( origDir, subPath)
-  ourFullPath = os.path.join( archDir, subPath)
-  if bugLev >= 5:
-    print 'fillDbRow: origFullPath: %s' % (origFullPath,)
-    print 'fillDbRow: ourFullPath: %s' % (ourFullPath,)
-
-  ourJsonPath = os.path.join( ourFullPath, wrapUpload.wrapUploadJsonName)
+  ourJsonPath = os.path.join( subPath, wrapUpload.smallMapFile)
   if bugLev >= 5: print 'fillDbRow: ourJsonPath: %s' % (ourJsonPath,)
 
   wrapUpload.checkFileFull( ourJsonPath)
   with open( ourJsonPath) as fin:
     smallMap = json.load( fin)
 
-  keys = smallMap.keys()
-  keys.sort()
-  for key in keys:
-    print '  fillTableSub: smallMap[%s]: %s' % (key, smallMap[key],)
+  if bugLev >= 5:
+    printMap('fillTableSub: smallMap', smallMap, 30)
 
   readType = 'xml'
-  vaspObj = readVasp.parseDir( bugLev, readType, ourFullPath, -1)  # print = -1
+  vaspObj = readVasp.parseDir( bugLev, readType, subPath, -1)  # print = -1
   if bugLev >= 5:
     keys = smallMap.keys()
     keys.sort()
@@ -578,23 +603,35 @@ def fillDbRow(
     + dbtablemodel + 
     ''' (
         wrapid,
-        path,
+        abspath,
+        relpath,
+        statmapjson,
 
-        meta_firstname,    -- metadata: author first name
-        meta_lastname,     -- metadata: author last name
-        meta_publication,  -- metadata: publication DOI or placeholder
-        meta_standards,    -- metadata: controlled vocab keywords
-        meta_keywords,     -- metadata: uncontrolled vocab keywords
-        meta_notes,        -- metadata: notes
+        icsdNum,
+        magType,
+        magNum,
+        relaxType,
+        relaxNum,
 
-        icsdNum, magType, magNum,
-        relaxType, relaxNum,
-        excMsg, excTrace,
-        runDate, iterTotalTime,
-        systemName, encut_ev, ibrion, isif,
-        numAtom, typeNames, typeNums, typeMasses_amu,
-        typePseudos, typeValences,
-        atomNames, atomMasses_amu, atomPseudos, atomValences,
+        excMsg,
+        excTrace,
+
+        runDate,
+        iterTotalTime,
+        systemName,
+        encut_ev,
+        ibrion,
+        isif,
+        numAtom,
+        typeNames,
+        typeNums,
+        typeMasses_amu,
+        typePseudos,
+        typeValences,
+        atomNames,
+        atomMasses_amu,
+        atomPseudos,
+        atomValences,
 
         initialBasisMat,
         initialRecipBasisMat,
@@ -615,19 +652,16 @@ def fillDbRow(
         energyNoEntrp,
         energyPerAtom,
         efermi0,
-        cbMin, vbMax, bandgap,
-        fileNames, fileSizes)
-      values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        cbMin,
+        vbMax,
+        bandgap)
+      values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     ''',
     ( wrapId,
-      origFullPath,
-
-      smallMap['meta_firstName'],
-      smallMap['meta_lastName'],
-      smallMap['meta_publication'],
-      smallMap['meta_standards'],
-      smallMap['meta_keywords'],
-      smallMap['meta_notes'],
+      smallMap['absPath'],
+      smallMap['relPath'],
+      json.dumps( smallMap['statMap'],          # statMap in json format
+        sort_keys=True, indent=2, separators=(',', ': ')),
 
       smallMap['icsdNum'],
       smallMap['magType'],
@@ -677,8 +711,6 @@ def fillDbRow(
       getattr( vaspObj, 'cbMin', None),
       getattr( vaspObj, 'vbMax', None),
       getattr( vaspObj, 'bandgap', None),
-      getattr( vaspObj, 'fileNames', None),
-      getattr( vaspObj, 'fileSizes', None),
   ))
   conn.commit()
 
@@ -731,6 +763,16 @@ def formatArraySub( val):
   return msg
 
 
+#====================================================================
+
+def printMap( tag, vmap, maxLen):
+  print '\n%s' % (tag,)
+  keys = vmap.keys()
+  keys.sort()
+  for key in keys:
+    val = str( vmap[key])
+    if len(val) > maxLen: val = val[:maxLen] + '...'
+    print '    [%s]: %s' % (key, val,)
 
 #====================================================================
 

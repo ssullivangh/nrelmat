@@ -10,7 +10,6 @@ metadataName = 'metadata'
 
 # Names of required files
 requireNames = [
-  metadataName,
   'INCAR',
   'KPOINTS',
   'POSCAR',
@@ -30,10 +29,14 @@ optionNames = [
 ]
 
 
+# Work and archive subdir of the top level dir.
 digestDirName = 'wrapUpload.archive'
 
-overviewJsonName = 'overview.json'
-wrapUploadJsonName = 'wrapUpload.json'
+# Name of overMap json file within digestDirName
+overMapFile = 'overview.json'
+
+# Name of smallMap json file within each archived dir
+smallMapFile = 'wrapUpload.json'
 
 #====================================================================
 
@@ -41,7 +44,6 @@ def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
   print '  -bugLev     <int>      debug level.  Default: 0'
-  print '  -overview   <string>   overview or description.'
   sys.exit(1)
 
 
@@ -51,7 +53,6 @@ def badparms( msg):
 def main():
 
   bugLev = 0
-  overview = None
 
   if len(sys.argv) % 2 != 1:
     badparms('Parms must be key/value pairs')
@@ -59,12 +60,13 @@ def main():
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
     if   key == '-bugLev': bugLev = int( val)
-    elif key == '-overview': overview = val
     else: badparms('unknown key: "%s"' % (key,))
 
-  if overview == None: badparms('parm not specified: -overview')
-
   curDir = '.'
+
+  # Get metadata
+  metaPath = os.path.join( curDir, metadataName)
+  metaMap = parseMetadata( metaPath)
 
   digestDir = os.path.join( curDir, digestDirName)
   if os.path.lexists( digestDir):
@@ -73,13 +75,18 @@ def main():
   statInfos = []
   getStatInfos( bugLev, curDir, statInfos)
 
-  # Get the relative paths of all files to be archived, starting at curDir.
-  archPaths = []
+  # Init counters in miscMap
+  relDirs = []            # list of dirs we archive
+  archPaths = []          # list of files to archive
   miscMap = {
-    'numError': 0,
-    'numOkMetadata': 0
+    'numWarn': 0,
   }
-  checkArchPath( bugLev, curDir, miscMap, archPaths)
+  for nm in requireNames:
+    miscMap['tot_'+nm] = findNumFiles( nm, curDir)
+    miscMap['fnd_'+nm] = 0
+
+  # Get the relative paths of all files to be archived, starting at curDir.
+  getArchPath( bugLev, metaMap['omit'], curDir, miscMap, relDirs, archPaths)
 
   os.mkdir( digestDir)
 
@@ -92,50 +99,42 @@ def main():
       json.dumps( key)
       json.dumps( envMap[key])
     except TypeError, exc:
+      if bugLev >= 5: print 'cannot serialize env key: "%s"' % (key,)
       del envMap[key]
 
   curDate = datetime.datetime.now()
   userId = pwd.getpwuid(os.getuid())[0]
   hostName = socket.gethostname()
 
-  # Get some statistics
-  numIncar = findNumFiles('INCAR', curDir)
-  numVasprun = findNumFiles('vasprun.xml', curDir)
-  numOutcar = findNumFiles('OUTCAR', curDir)
-  numMetadata = findNumFiles('metadata', curDir)
+  numWarn = miscMap['numWarn']
+  if numWarn > 0:
+    ##print '\nFound %d warnings.  See notes above' % (numWarn,)
+    throwerr('\nFound %d warnings.  See notes above' % (numWarn,))
 
-  if miscMap['numError'] > 0:
-    throwerr('Found %d errors.  S notes above' % (numError,))
-  if numMetadata != miscMap['numOkMetadata']:
-    throwerr('num metadata: %d  num ok: %d' \
-      % (numMetadata, miscMap['numOkMetadata'],))
-
+  # Print statistics
   msg = 'wrapUpload: file summary:\n'
-  msg += '  num INCAR files found:         %4d    Num kept: %4d\n' \
-    % (numIncar, numMetadata)
-  msg += '  num OUTCAR files found:        %4d    Num kept: %4d\n' \
-    % (numOutcar, numMetadata)
-  msg += '  num vasprun.xml files found:   %4d    Num kept: %4d\n' \
-    % (numVasprun, numMetadata)
-  msg += '  num metadata files found:      %4d    Num kept: %4d\n' \
-    % (numMetadata, numMetadata)
+  for nm in requireNames:
+    totNum = miscMap['tot_'+nm]
+    fndNum = miscMap['fnd_'+nm]
+    msg += '  Total num %-12s files found: %4d    Kept: %4d  Omitted: %4d\n' \
+      % (nm, totNum, fndNum, totNum - fndNum,)
   logit( msg)
 
 
   # Coord with fillDbVasp.py fillTable
   overMap = {
+    'miscMap': miscMap,
+    'metaMap': metaMap,
     'curDate': curDate.strftime('%Y-%m-%dT%H:%M:%S.%f'),
     'userId': userId,
     'hostName': hostName,
-    'numIncar': numIncar,
-    'numOutcar': numOutcar,
-    'numVasprun': numVasprun,
     'uploadDir': os.path.abspath( curDir),
-    'overview': overview,
     'envMap': envMap,
     'statInfos': statInfos,
-    'archPaths': archPaths}
-  jFile = os.path.join( digestDir, overviewJsonName)
+    'relDirs': relDirs,
+    'archPaths': archPaths,
+  }
+  jFile = os.path.join( digestDir, overMapFile)
   with open( jFile, 'w') as fout:
     json.dump( overMap, fout, sort_keys=True, indent=2,
       separators=(',', ': '))
@@ -175,7 +174,7 @@ def main():
     'scpuser@cid-dev.hpc.nrel.gov:/data/incoming']
   runSubprocess( bugLev, os.getcwd(), args)
 
-  # xxx os.remove( idFile)
+  os.remove( idFile)
 
 
 
@@ -183,12 +182,99 @@ def main():
 #====================================================================
 
 
-def getStatMap( bugLev, fname):
-  absName = os.path.abspath( fname)
+
+def getArchPath( bugLev, omits, inDir, miscMap, relDirs, archPaths):
+  inDir = os.path.normpath( inDir)
+  if not os.path.isdir( inDir): throwerr('not a dir')
+
+  # Check for omit matches
+  keepIt = True
+  for pattern in omits:
+    if re.search( pattern, inDir): keepIt = False
+
+  if keepIt:
+    processDir( bugLev, inDir, miscMap, relDirs, archPaths)
+
+    # Recurse to subdirs
+    subNames = os.listdir( inDir)
+    subNames.sort()
+    for subName in subNames:
+      subPath = os.path.join( inDir, subName)
+      if os.path.isdir( subPath):
+        getArchPath( bugLev, omits, subPath, miscMap, relDirs, archPaths)
+
+  else:
+    print 'wrapUpload: %-14s %s' % ('skip subTree', inDir,)
+
+
+#====================================================================
+
+def processDir( bugLev, inDir, miscMap, relDirs, archPaths):
+  inDir = os.path.normpath( inDir)
+  if not os.path.isdir( inDir): throwerr('not a dir')
+  subNames = os.listdir( inDir)
+  subNames.sort()
+
+  # Check for requireNames and inc counts in miscMap
+  numRequire = len( requireNames)
+  numMatch = 0                 # num matches found in requireNames
+  foundFlags = []              # parallel with requireNames
+  for nm in requireNames:
+    subPath = os.path.join( inDir, nm)
+    if os.path.isfile( subPath):
+      checkFileFull( subPath)
+      numMatch += 1
+      found = True
+      miscMap['fnd_'+nm] += 1
+    else: found = False
+    foundFlags.append( found)
+
+  if numMatch == 0:
+    print 'wrapUpload: %-14s %s' % ('skip dir', inDir,)
+
+  elif numMatch < len( requireNames):
+    print ''
+    print 'wrapUpload: Warning: incomplete dir: %s' % (inDir,)
+    for ii in range(len(requireNames)):
+      if foundFlags[ii]: print '  found:   %s' % (requireNames[ii],)
+      else:              print '  MISSING: %s' % (requireNames[ii],)
+    print ''
+    miscMap['numWarn'] += 1
+
+  elif numMatch == len(requireNames):
+
+    # Append file paths to archPaths.
+    for nm in requireNames:
+      subPath = os.path.join( inDir, nm)
+      archPaths.append( subPath)
+
+    # Check for optionNames
+    for nm in subNames:
+      subPath = os.path.join( inDir, nm)
+      if nm in optionNames and os.path.isfile( subPath):
+        checkFile( subPath)
+        archPaths.append( subPath)
+
+    # Create smallMapFile in this dir
+    writeDirDigest( bugLev, inDir)
+    archPaths.append( os.path.join( inDir, smallMapFile))
+    print 'wrapUpload: %-14s %s' % ('keep dir', inDir,)
+
+    relDirs.append( inDir)
+
+  else: throwerr('invalid numMatch')
+
+
+#====================================================================
+
+# Calls os.stat on fpath and returns map: statInfoName -> value
+
+def getStatMap( bugLev, fpath):
+  absName = os.path.abspath( fpath)
   statInfo = os.stat( absName)
   if bugLev >= 5:
-    print 'getStatMap: fname: %s  absName: %s statInfo: %s' \
-      % ( fname, absName, statInfo,)
+    print 'getStatMap: fpath: %s  absName: %s statInfo: %s' \
+      % ( fpath, absName, statInfo,)
   smap = {}
   for key in dir( statInfo):
     if key.startswith('st_'):
@@ -201,19 +287,15 @@ def getStatMap( bugLev, fname):
 
 # Recursively get "stat" info (filename, len, dates)
 # for a directory tree.
+# Appends to statInfos, which is a list of pairs: [absName, statinfoMap].
 
 def getStatInfos( bugLev, fname, statInfos):
-  absName = os.path.normpath( fname)
-  statInfo = os.stat( absName)
-  if bugLev >= 5:
-    print 'getStatInfos: fname: %s  absName: %s statInfo: %s' \
-      % ( fname, absName, statInfo,)
-  smap = {}
-  for key in dir( statInfo):
-    if key.startswith('st_'):
-      value = getattr( statInfo, key, None)
-      smap[key] = value
+
+  absName = os.path.abspath( fname)
+
+  smap = getStatMap( bugLev, absName)
   statInfos.append( (absName, smap,) )
+
   if os.path.isdir( absName):
     subNames = os.listdir( absName)
     subNames.sort()
@@ -225,80 +307,7 @@ def getStatInfos( bugLev, fname, statInfos):
 
 #====================================================================
 
-
-# Recursively get the relative paths of all files to be archived,
-# starting at dirName.
-
-def checkArchPath( bugLev, inDir, miscMap, archPaths):
-  inDir = os.path.normpath( inDir)
-  if bugLev >= 5:
-    print 'checkArchPath: inDir: %s' % ( inDir,)
-  if not os.path.isdir( inDir): throwerr('not a dir')
-  subNames = os.listdir( inDir)
-  subNames.sort()
-
-  if not metadataName in subNames:
-    print 'wrapUpload: no metadata file; skipping dir: %s' % (inDir,)
-  else:
-    getArchPath( bugLev, inDir, miscMap, archPaths)
-
-  # Recurse to subdirs
-  for subName in subNames:
-    subPath = os.path.join( inDir, subName)
-    if os.path.isdir( subPath):
-      checkArchPath( bugLev, subPath, miscMap, archPaths)
-
-
-#====================================================================
-
-
-def getArchPath( bugLev, inDir, miscMap, archPaths):
-  if not os.path.isdir( inDir): throwerr('not a dir')
-
-  inDir = os.path.normpath( inDir)
-  subNames = os.listdir( inDir)
-  subNames.sort()
-
-  # Check for requireNames
-  numMatch = 0                 # num matches found in requireNames
-  foundFlags = []
-  for nm in subNames:
-    subPath = os.path.join( inDir, nm)
-    if nm in requireNames and os.path.isfile( subPath):
-      numMatch += 1
-      foundFlags.append( True)
-    else: foundFlags.append( False)
-
-  if numMatch == len(requireNames):
-    # Make sure we can read the file, and append it to archPaths.
-    for nm in requireNames:
-      subPath = os.path.join( inDir, nm)
-      checkFileFull( subPath)
-      archPaths.append( subPath)
-
-    writeDirDigest( bugLev, inDir)
-    archPaths.append( os.path.join( inDir, wrapUploadJsonName))
-    miscMap['numOkMetadata'] += 1
-
-  else:
-    print 'wrapUpload: Error: incomplete dir: %s' % (inDir,)
-    for ii in range(len(requireNames)):
-      if foundFlags[ii]: print '  found:   %s' % (requireNames[ii],)
-      else:              print '  MISSING: %s' % (requireNames[ii],)
-    miscMap['numError'] += 1
-
-  # Check for optionNames
-  for nm in subNames:
-    subPath = os.path.join( inDir, nm)
-    if nm in optionNames and os.path.isfile( subPath):
-      checkFile( subPath)
-      archPaths.append( subPath)
-
-
-
-#====================================================================
-
-# Create wrapUpload.json
+# Create smallMapFile in this dir
 
 def writeDirDigest( bugLev, inDir):
   absPath = os.path.abspath( inDir)
@@ -358,11 +367,7 @@ def writeDirDigest( bugLev, inDir):
     smap = getStatMap( bugLev, os.path.join( absPath, nm))
     statMap[nm] = smap
 
-  # Get the user-specified metadata file
-  metaPath = os.path.join( absPath, metadataName)
-  metaMap = parseMetadata( metaPath)      # make sure format is valid
-
-  # Extract info from inDir
+  # Save the info from the path name and statInfo
   smallMap = {
     'icsdNum'   : icsdNum,
     'magType'   : magType,
@@ -370,14 +375,12 @@ def writeDirDigest( bugLev, inDir):
     'relaxType' : relaxType,
     'relaxNum'  : relaxNum,
     'absPath'   : absPath,
+    'relPath'   : inDir,
     'statMap'   : statMap,
   }
-  # Copy metaMap into smallMap
-  for key in metaMap.keys():
-    smallMap['meta_' + key] = metaMap[key]
 
   # Write smallMap to wrapUpload.data
-  jFile = os.path.join( inDir, wrapUploadJsonName)
+  jFile = os.path.join( inDir, smallMapFile)
   if os.path.lexists( jFile):
     os.remove( jFile)
   with open( jFile, 'w') as fout:
@@ -428,14 +431,17 @@ def unused_extractPotcar( fname):
 def parseMetadata( fpath):
 
   # Required metadata fields comprised of comma separated words
-  commaNames = ['standards', 'keywords']
+  reqCommaNames = ['standards', 'keywords',]
 
   # Required metadata text fields
-  textNames = [ 'firstName', 'lastName', 'publication', 'notes']
+  reqTextNames = [ 'firstName', 'lastName', 'publication', 'notes',]
+
+  # Optional text fields
+  optTextLists = [ 'omit',]
 
   checkFileFull( fpath)
   with open( fpath) as fin:
-    lines = fin.readlines()
+    lines = fin.readlines()       # not stripped.  Includes final \n.
 
   metaMap = {}
   if len(lines) < 2:
@@ -459,11 +465,13 @@ def parseMetadata( fpath):
       while iline < len(lines):
         line = lines[iline]
         if line.startswith('#') or re.match(r'^:(\w+):(.*)', line): break
-        value += '\n' + line
+        value += line        # lines already include \n
         iline += 1
-      value = value.strip()  # clean up whitespace at ends, not within value
 
-      if field in commaNames:
+      # Clean up whitespace at the ends, not within the value
+      value = value.strip()
+
+      if field in reqCommaNames:
         # Convert value to list of keywords.
         # Insure keywords don't contain whitespace.
         toks = value.split(',')
@@ -474,17 +482,29 @@ def parseMetadata( fpath):
             throwerr('bad keyword: \"%s\"  approx iline: %d  file: \"%s\"' \
               % (tok, iline, fpath,))
           value.append( tok)
+        if metaMap.has_key(field):
+          metaMap[field] += value            # append lists
+        else: metaMap[field] = value
 
-      elif field in textNames:
-        pass
+      elif field in reqTextNames:
+        if metaMap.has_key(field):
+          metaMap[field] += '\n' + value     # append text
+        else: metaMap[field] = value
+
+      elif field in optTextLists:
+        if len(field) > 0:                   # ignore blank lines
+          if metaMap.has_key(field):
+            metaMap[field] += [value]        # append lists
+          else: metaMap[field] = [value]     # make list
 
       else:
         throwerr('unknown field: \"%s\"  approx iline: %d  file: \"%s\"' \
           % (field, iline, fpath,))
 
-      metaMap[field] = value
+  for nm in optTextLists:
+    if not metaMap.has_key(nm): metaMap[nm] = []
 
-  for nm in commaNames + textNames:
+  for nm in reqCommaNames + reqTextNames:
     if not metaMap.has_key(nm): 
       throwerr('missing field: \"%s\" in file: \"%s\"' % (nm, file,))
 

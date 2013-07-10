@@ -34,7 +34,7 @@ def main():
   ==============  ===========   ==============================================
   Function        Column        Notes
   ==============  ===========   ==============================================
-  addIsminenergy  isminenergy   == true iff finalenergy == min for this ICSD.
+  addIsminenergy  isminenergy   == true iff energynoentrp == min for this ICSD.
   addChemforms    chemsum       Standard chemical formula: ``"H2 O"``.
   addChemForms    chemform      Structured formula, easier for parsing.
                                 Every token is surrounded by spaces, and
@@ -130,7 +130,7 @@ def augmentDb( buglev, wrapId, inSpec):
   if dbtablemodel == None:  badparms('inSpec name not found: dbtablemodel')
   dbport = int( dbport)
 
-  queryCols = ['mident', 'icsdnum', 'finalenergy', 'typenames', 'typenums']
+  queryCols = ['mident', 'icsdnum', 'energynoentrp', 'typenames', 'typenums']
 
   conn = None
   cursor = None
@@ -188,9 +188,9 @@ def addIsminenergy( buglev, curCols, db_rows):
     print 'addIsminenergy beg: curCols: %s' % (curCols,)
     print 'addIsminenergy beg: first row: %s' % (db_rows[0],)
   icolicsd   = getIcol( curCols, 'icsdnum')
-  icolenergy = getIcol( curCols, 'finalenergy')
+  icolenergy = getIcol( curCols, 'energynoentrp')
 
-  icsdMap = {}       # icsdnum -> min finalenergy
+  icsdMap = {}       # icsdnum -> min energynoentrp
   for row in db_rows:
     icsdnum = row[icolicsd]
     energy = row[icolenergy]
