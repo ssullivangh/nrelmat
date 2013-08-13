@@ -12,10 +12,11 @@ Contents:
    :maxdepth: 2
 
    augmentDb.py: Add additional info to the model table. <augmentDb>
-   digestVasp.py: Read a VASP output file or tree and write a digest file.  <digestVasp>
-   fillDbVasp.py:    Read a digest file created by digestVasp and add rows to the model table.  <fillDbVasp>
-   wrapUpload.sh: Shell script to upload results to the database <wrapUpload>
+   fillDbVasp.py: Read files created by wrapUpload and add rows to the model table.  <fillDbVasp>
+   readVasp.py: Read and parse an OUTCAR or vasprun.xml file <readVasp>
+   statsa.py: Generate statistics from the icsdcif table <statsa>
    wrapReceive.py: Receive results sent by wrapUpload.sh <wrapReceive>
+   wrapUpload.py: Locate, extract, and upload results to the server running wrapReceive. <wrapUpload>
 
 
 Indices and tables

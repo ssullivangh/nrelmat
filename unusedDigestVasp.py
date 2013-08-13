@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
 
-import datetime, math, os, re, sys, time, traceback, cPickle
+import datetime, math, os, re, sys, time, cPickle
 
 import readVasp
 
-
-buglev = 0  # xxx make a parm
 
 #====================================================================
 
@@ -14,7 +12,7 @@ buglev = 0  # xxx make a parm
 def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
-  print '  -buglev     <int>      debug level'
+  print '  -bugLev     <int>      debug level'
   print '  -func       <string>   fillOne / fillTree'
   print '  -readType   <string>   xml / pylada'
   print '  -inDir      <string>   input file or dir'
@@ -42,7 +40,7 @@ def main():
   ==============   =========    ==============================================
   Parameter        Type         Description
   ==============   =========    ==============================================
-  **-buglev**      integer      Debug level.  Normally 0.
+  **-bugLev**      integer      Debug level.  Normally 0.
   **-func**        string       Function.  See below.
   **-readType**    string       Xml or pylada.  See below.
   **-inDir**       string       Input directory.
@@ -68,7 +66,7 @@ def main():
     Read the OUTCAR file.
   '''
 
-  buglev = None
+  bugLev = None
   func = None
   readType = None
   inDir = None
@@ -80,7 +78,7 @@ def main():
   for iarg in range( 1, len(sys.argv), 2):
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
-    if   key == '-buglev': buglev = int( val)
+    if   key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
     elif key == '-readType': readType = val
     elif key == '-inDir': inDir = val
@@ -92,7 +90,7 @@ def main():
     elif key == '-outDigest': outDigest = val
     else: badparms('unknown key: "%s"' % (key,))
 
-  if buglev == None: badparms('parm not specified: -buglev')
+  if bugLev == None: badparms('parm not specified: -bugLev')
   if func == None: badparms('parm not specified: -func')
   if readType == None: badparms('parm not specified: -readType')
   if inDir == None: badparms('parm not specified: -inDir')
@@ -101,17 +99,17 @@ def main():
   resList = []
 
   if func == 'fillOne':
-    if buglev >= 1: logit('digestVasp: begin inDir: %s' % (inDir,))
+    if bugLev >= 1: logit('digestVasp: begin inDir: %s' % (inDir,))
     foundOmit = False
     for omit in omits:
       if inDir.find(omit) >= 0: foundOmit = True
     if foundOmit:
       logit('digestVasp: omit inDir: %s' % (inDir,))
     else:
-      resObj = readVasp.parseDir( buglev, readType, inDir, -1)  # maxLev = -1
+      resObj = readVasp.parseDir( bugLev, readType, inDir, -1)  # maxLev = -1
       resList.append( resObj)
   elif func == 'fillTree':
-    fillTree( buglev, func, readType, inDir, omits, resList)
+    fillTree( bugLev, func, readType, inDir, omits, resList)
   else: throwerr('unknown func: "%s"' % (func,))
 
   with open( outDigest, 'w') as fout:
@@ -121,20 +119,20 @@ def main():
 
 
 def fillTree(
-  buglev,
+  bugLev,
   func,
   readType,
   inDir,
   omits,
   resList):
 
-  if buglev >= 2: logit('digestVasp: begin tree: %s' % (inDir,))
+  if bugLev >= 2: logit('digestVasp: begin tree: %s' % (inDir,))
   fnames = os.listdir( inDir)
   fnames.sort()
 
   if readType == 'xml' and 'vasprun.xml' in fnames \
     or readType == 'pylada' and 'OUTCAR' in fnames:
-    if buglev >= 1: logit('digestVasp: begin inDir: %s' % (inDir,))
+    if bugLev >= 1: logit('digestVasp: begin inDir: %s' % (inDir,))
 
     foundOmit = False
     for omit in omits:
@@ -142,14 +140,14 @@ def fillTree(
     if foundOmit:
       logit('digestVasp: omit inDir: %s' % (inDir,))
     else:
-      resObj = readVasp.parseDir( buglev, readType, inDir, -1)  # maxLev = -1
+      resObj = readVasp.parseDir( bugLev, readType, inDir, -1)  # maxLev = -1
       resList.append( resObj)
 
   for fnm in fnames:
     fpath = inDir + '/' + fnm
     if os.path.isdir( fpath):
       fillTree(                     # recursion
-        buglev,
+        bugLev,
         func,
         readType,
         fpath,

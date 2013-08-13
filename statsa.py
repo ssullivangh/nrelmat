@@ -1,13 +1,10 @@
 #!/usr/bin/env python
 
-import datetime, json, os, re, sys, traceback, cPickle
-import numpy as np
+import datetime, json, os, re, sys
 import psycopg2
 
 import readVasp
 
-
-buglev = 0  # xxx make a parm
 
 #====================================================================
 
@@ -23,15 +20,15 @@ def badparms( msg):
 
 def main():
   '''
-  This program generates statistics on the icsd database.
-  It only reads the database; it does not alter the database.
+  This program generates statistics from the icsdcif database table.
+  It only reads the database; it does not alter it.
 
   Command line parameters:
 
   =============   ===========   ==============================================
   Parameter       Type          Description
   =============   ===========   ==============================================
-  **-buglev**     integer       Debug level.  Normally 0.
+  **-bugLev**     integer       Debug level.  Normally 0.
   **-loLim**      integer       Low limit for numcellatom.
   **-hiLim**      integer       High limit for numcellatom.
   **-incr**       integer       Increment for numcellatom.
@@ -64,10 +61,9 @@ def main():
       "dbschema"       : "satom",
       "dbtablemodel"   : "model"
     }
-
   '''
 
-  buglev     = None
+  bugLev     = None
   loLim      = None
   hiLim      = None
   incr       = None
@@ -79,7 +75,7 @@ def main():
   for iarg in range( 1, len(sys.argv), 2):
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
-    if   key == '-buglev': buglev = int( val)
+    if   key == '-bugLev': bugLev = int( val)
     elif key == '-loLim': loLim = int( val)
     elif key == '-hiLim': hiLim = int( val)
     elif key == '-incr': incr = int( val)
@@ -87,14 +83,14 @@ def main():
     elif key == '-outData': outData = val
     else: badparms('unknown key: "%s"' % (key,))
 
-  if buglev == None: badparms('parm not specified: -buglev')
+  if bugLev == None: badparms('parm not specified: -bugLev')
   if loLim == None: badparms('parm not specified: -loLim')
   if hiLim == None: badparms('parm not specified: -hiLim')
   if incr == None: badparms('parm not specified: -incr')
   if inSpec == None: badparms('parm not specified: -inSpec')
   if outData == None: badparms('parm not specified: -outData')
 
-  tuples = statsMain( buglev, loLim, hiLim, incr, inSpec)
+  tuples = statsMain( bugLev, loLim, hiLim, incr, inSpec)
 
   with open( outData, 'w') as fout:
     totalNumCase = 0;
@@ -112,7 +108,24 @@ def main():
 #====================================================================
 
 
-def statsMain( buglev, loLim, hiLim, incr, inSpec):
+def statsMain( bugLev, loLim, hiLim, incr, inSpec):
+  '''
+  Opens the database and calls function :func:`statsA`.
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * loLim (int): The overall low limit for statsA.
+  * hiLim (int): The overall high limit for statsA.
+  * incr (int): The section length = increment for the sections for statsA.
+  * inSpec (str): Name of JSON file containing DB parameters.
+                  See description at :func:`main`.
+
+  **Returns**:
+
+  * tuples from :func:`statsA`.
+  '''
+
 
   with open( inSpec) as fin:
     specMap = json.load( fin)
@@ -144,12 +157,12 @@ def statsMain( buglev, loLim, hiLim, incr, inSpec):
       user=dbuser,
       password=dbpswd,
       database=dbname)
-    if buglev >= 1:
+    if bugLev >= 1:
       print 'main: got conn.  dbhost: %s  dbport: %d' % (dbhost, dbport,)
     cursor = conn.cursor()
     cursor.execute('set search_path to %s', (dbschema,))
     
-    tuples = statsA( buglev, loLim, hiLim, incr, cursor)
+    tuples = statsA( bugLev, loLim, hiLim, incr, cursor)
 
   finally:
     if cursor != None: cursor.close()
@@ -162,16 +175,37 @@ def statsMain( buglev, loLim, hiLim, incr, inSpec):
 
 
 
-def statsA( buglev, loLim, hiLim, incr, cursor):
+def statsA( bugLev, loLim, hiLim, incr, cursor):
+  '''
+  Chops the region from loLim to hiLim into sections of
+  length incr, and for each section
+  finds the number of rows in the icsdcif table having
+  numcellatom within the section bounds.
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * loLim (int): The overall low limit.
+  * hiLim (int): The overall high limit.
+  * incr (int): The section length = increment for the sections.
+  * cursor (psycopg2.cursor): Open DB cursor
+
+  **Returns**:
+
+  * tuples: list of pairs: [lowBnd, numCases]
+    where tuples[k] has
+    loBnd = loLim + k*incr
+    and numCases = num rows having loBnd <= numcellatom < loBnd+incr.
+  '''
+
   tuples = []
   for nn in range( loLim, hiLim, incr):
-    db_rows = None
 
     cursor.execute('SELECT count(*) FROM icsdcif'
       + ' WHERE numcellatom >= %s AND numcellatom < %s'
       + ' and formuladelta < 0.01'
       + ' and occudelta < 0.01'
-      + ' and \'H\'  != all( formulanames)',
+      + ' and \'H\' != all( formulanames)',
       (nn, nn + incr,))
     msg = cursor.statusmessage
     # print 'statsA: nn: %d  msg: %s' % (nn, msg,)
@@ -188,6 +222,22 @@ def statsA( buglev, loLim, hiLim, incr, cursor):
 #====================================================================
 
 def throwerr( msg):
+  '''
+  Prints an error message and raises Exception.
+
+  **Parameters**:
+
+  * msg (str): Error message.
+
+  **Returns**
+
+  * (Never returns)
+  
+  **Raises**
+
+  * Exception
+  '''
+
   print msg
   print >> sys.stderr, msg
   raise Exception( msg)

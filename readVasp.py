@@ -6,11 +6,17 @@ import xml.etree.cElementTree as etree
 import numpy as np
 
 
-buglev = 0  # xxx make a parm
-
 #====================================================================
 
 class ResClass:
+  '''
+  An empty class used as a data container for parseDir results.
+
+  The parseDir function will call either parsePylada or parseXml,
+  and they will save the VASP results as attributes of
+  an instance of ResClass.
+  '''
+
   def __str__(self):
     keys = self.__dict__.keys()
     keys.sort()
@@ -29,20 +35,37 @@ class ResClass:
 def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
-  print '  -buglev    <int>      debug level'
+  print '  -bugLev    <int>      debug level'
   print '  -inType    <string>   pylada / xml'
   print '  -inDir     <string>   dir containing input OUTCAR or vasprun.xml'
   print '  -maxLev    <int>      max levels to print for xml'
   print ''
   print 'Examples:'
-  print './readVasp.py -buglev 5   -inType xml   -inDir tda/testlada.2013.04.15.fe.len.3.20/icsd_044729/icsd_044729.cif/hs-anti-ferro-0/relax_cellshape/0   -maxLev 0'
+  print './readVasp.py -bugLev 5   -inType xml   -inDir tda/testlada.2013.04.15.fe.len.3.20/icsd_044729/icsd_044729.cif/hs-anti-ferro-0/relax_cellshape/0   -maxLev 0'
   sys.exit(1)
 
 #====================================================================
 
 
 def main():
-  buglev = 0
+  '''
+  Test driver: Extracts info from the output of a VASP run.
+
+  Command line parameters:
+
+  ================  =========    ==============================================
+  Parameter         Type         Description
+  ================  =========    ==============================================
+  **-bugLev**       integer      Debug level.  Normally 0.
+  **-inType**       string       If 'pylada', read the OUTCAR file.
+                                 Else if 'xml', read the vasprun.xml file.
+  **-inDir**        string       Input directory containing OUTCAR
+                                 and/or vasprun.xml.
+  **-maxLev**       int          Max number of levels to print for xml
+  ================  =========    ==============================================
+  '''
+
+  bugLev = 0
   inType = None
   inDir = None
   maxLev = None
@@ -52,20 +75,20 @@ def main():
   for iarg in range( 1, len(sys.argv), 2):
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
-    if key == '-buglev': buglev = int( val)
+    if key == '-bugLev': bugLev = int( val)
     elif key == '-inType': inType = val
     elif key == '-inDir': inDir = val
     elif key == '-maxLev': maxLev = int( val)
     else: badparms('unknown key: "%s"' % (key,))
 
-  if buglev == None: badparms('parm not specified: -buglev')
+  if bugLev == None: badparms('parm not specified: -bugLev')
   if inType == None: badparms('parm not specified: -inType')
   if inDir == None: badparms('parm not specified: -inDir')
   if maxLev == None: badparms('parm not specified: -maxLev')
 
   ##np.set_printoptions( threshold=10000)
 
-  resObj = parseDir( buglev, inType, inDir, maxLev)
+  resObj = parseDir( bugLev, inType, inDir, maxLev)
 
   print 'main: resObj:\n%s' % (resObj,)
 
@@ -76,10 +99,26 @@ def main():
 # Returns ResClass instance.
 
 def parseDir(
-  buglev,
+  bugLev,
   inType,
   inDir,
   maxLev):
+  '''
+  Extracts info from the output of a VASP run.
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * inType (str): If 'pylada', read the OUTCAR file.
+    Else if 'xml', read the vasprun.xml file.
+  * inDir (str): Input directory containing OUTCAR
+    and/or vasprun.xml.
+  * max (int) Max number of levels to print for xml
+
+  **Returns**:
+
+  * resObj (class ResClass): data object with attributes set.
+  '''
 
   if not os.path.isdir(inDir):
     throwerr('inDir is not a dir: "%s"' % (inDir,))
@@ -93,12 +132,12 @@ def parseDir(
       inFile = os.path.join( inDir, 'OUTCAR')
       if not os.path.isfile(inFile):
         throwerr('inFile is not a file: "%s"' % (inFile,))
-      parsePylada( buglev, inFile, resObj)
+      parsePylada( bugLev, inFile, resObj)
     elif inType == 'xml':
       inFile = os.path.join( inDir, 'vasprun.xml')
       if not os.path.isfile(inFile):
         throwerr('inFile is not a file: "%s"' % (inFile,))
-      parseXml( buglev, inFile, maxLev, resObj)
+      parseXml( bugLev, inFile, maxLev, resObj)
     else: throwerr('unknown inType: %s' % (inType,))
   except Exception, exc:
     resObj.excTrace = traceback.format_exc( limit=None)
@@ -115,7 +154,21 @@ def parseDir(
 
 #====================================================================
 
-def parsePylada( buglev, inFile, resObj):
+def parsePylada( bugLev, inFile, resObj):
+  '''
+  Extracts info from the OUTCAR file from a VASP run,
+  using the PyLada vasp.Extract API.
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * inFile (str): Path of the input OUTCAR file.
+  * resObj (class ResClass): data object: we set attributes here.
+
+  **Returns**:
+
+  * None
+  '''
 
   import pylada.vasp
 
@@ -155,7 +208,7 @@ def parsePylada( buglev, inFile, resObj):
   # totalValence = sum( count[i] * valence[i])
   # PyLada calls this valence.
   resObj.totalValence = np.dot( resObj.typeNums, resObj.typeValences)
-  if buglev >= 5: print 'totalValence: %g' % (resObj.totalValence,)
+  if bugLev >= 5: print 'totalValence: %g' % (resObj.totalValence,)
   if resObj.numElectron != resObj.totalValence:
     # xxx should this be an error?
     print('%g == numElectron != totalValence == %g' \
@@ -214,7 +267,7 @@ def parsePylada( buglev, inFile, resObj):
   resObj.kpointWeights = None          # xxx not available
   resObj.kpointRecipSpaceFracCoords = \
     np.dot( resObj.kpointRecipSpaceCartCoords, resObj.initialBasisMat)
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'numKpoint: %g' % (resObj.numKpoint,)
     print 'kpointRecipSpaceFracCoords:\n%s' \
       % (repr(resObj.kpointRecipSpaceFracCoords),)
@@ -240,7 +293,7 @@ def parsePylada( buglev, inFile, resObj):
   resObj.cbMin        = float( ex.cbm)                   # eV
   resObj.vbMax        = float( ex.vbm)                   # eV
   resObj.bandgap      = resObj.cbMin - resObj.vbMax      # eV
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'cbMin: %g' % (resObj.cbMin,)
     print 'vbMax: %g' % (resObj.vbMax,)
     print 'bandgap:  %g' % (resObj.bandgap,)
@@ -264,13 +317,27 @@ def parsePylada( buglev, inFile, resObj):
 
 #====================================================================
 
-def parseXml( buglev, inXml, maxLev, resObj):
+def parseXml( bugLev, inXml, maxLev, resObj):
+  '''
+  Extracts info from the vasprun.xml file from a VASP run,
+  using the Python xml.etree.cElementTree API.
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * inFile (str): Path of the input OUTCAR file.
+  * resObj (class ResClass): data object: we set attributes here.
+
+  **Returns**:
+
+  * None
+  '''
 
   tree = etree.parse( inXml)
   root = tree.getroot()
-  if buglev >= 1: printNode( root, 0, maxLev)      # node, curLev, maxLev
+  if bugLev >= 1: printNode( root, 0, maxLev)      # node, curLev, maxLev
 
-  if buglev >= 5: print '\n===== program, version, date etc =====\n'
+  if bugLev >= 5: print '\n===== program, version, date etc =====\n'
 
   # xxx program, version, subversion, etc
 
@@ -283,7 +350,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
   dateFmtOut = '%Y-%m-%d %H:%M:%S'
   resObj.runDate = datetime.datetime.strptime(
     '%s %s' % (dtStg, tmStg), dateFmtIn)
-  if buglev >= 5: print 'runDate: %s' % (resObj.runDate.strftime( dateFmtOut),)
+  if bugLev >= 5: print 'runDate: %s' % (resObj.runDate.strftime( dateFmtOut),)
 
 
   # iterTimes
@@ -301,24 +368,24 @@ def parseXml( buglev, inXml, maxLev, resObj):
   resObj.iterCpuTimes = iterCpuTimes
   resObj.iterRealTimes = iterRealTimes
   resObj.iterTotalTime = np.sum( iterRealTimes)
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'iterCpuTimes: %s' % (resObj.iterCpuTimes,)
     print 'iterRealTimes: %s' % (resObj.iterRealTimes,)
     print 'iterTotalTime: %s' % (resObj.iterTotalTime,)
 
 
-  if buglev >= 5: print '\n===== incar parameters =====\n'
+  if bugLev >= 5: print '\n===== incar parameters =====\n'
 
   # algo
   # PyLada: vasp/extract/base.py: algo()
   # OUTCAR: use the 1 occurance of:
   #   ALGO = Fast
   resObj.algo = getString( root, 'incar/i[@name=\'ALGO\']')
-  if buglev >= 5: print 'algo: "%s"' % (resObj.algo,)
+  if bugLev >= 5: print 'algo: "%s"' % (resObj.algo,)
 
   ediff = getScalar( root, 'incar/i[@name=\'EDIFF\']', float)
   resObj.ediff = ediff
-  if buglev >= 5: print 'ediff: %g' % (ediff,)
+  if bugLev >= 5: print 'ediff: %g' % (ediff,)
 
   # encut
   # PyLada: vasp/extract/base.py: encut()
@@ -326,13 +393,13 @@ def parseXml( buglev, inXml, maxLev, resObj):
   #   ENCUT  =  252.0 eV  18.52 Ry    4.30 a.u.   4.08  4.08 15.92*2*pi/ulx,y,z
   #   ENCUT = 252.0
   resObj.encut_ev = getScalar( root, 'incar/i[@name=\'ENCUT\']', float)
-  if buglev >= 5: print 'encut_ev: %g' % (resObj.encut_ev,)
+  if bugLev >= 5: print 'encut_ev: %g' % (resObj.encut_ev,)
 
   resObj.ibrion = getScalar( root, 'incar/i[@name=\'IBRION\']', int)
-  if buglev >= 5: print 'ibrion: %g' % (resObj.ibrion,)
+  if bugLev >= 5: print 'ibrion: %g' % (resObj.ibrion,)
 
   resObj.isif = getScalar( root, 'incar/i[@name=\'ISIF\']', int)
-  if buglev >= 5: print 'isif: %g' % (resObj.isif,)
+  if bugLev >= 5: print 'isif: %g' % (resObj.isif,)
 
   # ldauType
   # PyLada: vasp/extract/base.py: LDAUType()
@@ -343,23 +410,23 @@ def parseXml( buglev, inXml, maxLev, resObj):
   #if rawLdauType == 1: resObj.ldauType = 'liechtenstein'
   #elif rawLdauType == 2: resObj.ldauType = 'dudarev'
   #else: throwerr('unknown rawLdauType: %d' % (rawLdauType,))
-  #if buglev >= 5:
+  #if bugLev >= 5:
   #  print 'rawLdauType: %d  ldauType: %s' % (rawLdauType, resObj.ldauType,)
 
   resObj.systemName = getString( root, 'incar/i[@name=\'SYSTEM\']')
-  if buglev >= 5: print 'systemName: "%s"' % (resObj.systemName,)
+  if bugLev >= 5: print 'systemName: "%s"' % (resObj.systemName,)
 
 
 
-  if buglev >= 5: print '\n===== general parameters =====\n'
+  if bugLev >= 5: print '\n===== general parameters =====\n'
 
   resObj.generalName = getString(
     root, 'parameters/separator[@name=\'general\']/i[@name=\'SYSTEM\']')
-  if buglev >= 5: print 'generalName: "%s"' % (resObj.generalName,)
+  if bugLev >= 5: print 'generalName: "%s"' % (resObj.generalName,)
 
 
 
-  if buglev >= 5: print '\n===== electronic parameters =====\n'
+  if bugLev >= 5: print '\n===== electronic parameters =====\n'
 
   lst = root.findall('parameters/separator[@name=\'electronic\']')
   if len(lst) != 1: throwerr('electronic parameters not found')
@@ -370,36 +437,36 @@ def parseXml( buglev, inXml, maxLev, resObj):
   #   Electronic relaxation 2 (details)
   #     IALGO  =     68    algorithm
   resObj.ialgo = getScalar( elecNode, 'i[@name=\'IALGO\']', int)
-  if buglev >= 5: print 'ialgo: %d' % (resObj.ialgo,)
+  if bugLev >= 5: print 'ialgo: %d' % (resObj.ialgo,)
 
   # numBand = nbands
   # Caution: in some cases NBANDS != eigenMrr['eigene'].shape[2]
   # So we use the eigene dimension instead.
   # See further below.
   prmNumBand = getScalar( elecNode, 'i[@name=\'NBANDS\']', int)
-  if buglev >= 5: print 'prmNumBand: %d' % (prmNumBand,)
+  if bugLev >= 5: print 'prmNumBand: %d' % (prmNumBand,)
 
   # numElectron = nelect
   # PyLada: vasp/extract/base.py: nelect()
   # OUTCAR: use the 1 occurance of:
   #     NELECT =      48.0000    total number of electrons
   resObj.numElectron = getScalar( elecNode, 'i[@name=\'NELECT\']', float)
-  if buglev >= 5: print 'numElectron: %d' % (resObj.numElectron,)
+  if bugLev >= 5: print 'numElectron: %d' % (resObj.numElectron,)
 
   # icharg
   resObj.icharg = getScalar(
     elecNode,
     'separator[@name=\'electronic startup\']/i[@name=\'ICHARG\']',
     int)
-  if buglev >= 5: print 'icharg: %g' % (resObj.icharg,)
+  if bugLev >= 5: print 'icharg: %g' % (resObj.icharg,)
 
   # numSpin == ispin
   resObj.numSpin = getScalar(
     elecNode, 'separator[@name=\'electronic spin\']/i[@name=\'ISPIN\']', int)
-  if buglev >= 5: print 'numSpin: %g' % (resObj.numSpin,)
+  if bugLev >= 5: print 'numSpin: %g' % (resObj.numSpin,)
 
 
-  if buglev >= 5: print '\n===== atom info =====\n'
+  if bugLev >= 5: print '\n===== atom info =====\n'
 
   # atomTypeMrr = map containing array.  Example (some whitespace omitted):
   #   _dimLens: [2]
@@ -413,13 +480,13 @@ def parseXml( buglev, inXml, maxLev, resObj):
   #   pseudopotential: [' PAW_PBE C_s 06Sep2000 ' ' PAW_PBE Fe 06Sep2000 ']
 
   atomTypeMrr = getArrayByPath(
-    buglev, root, 'atominfo/array[@name=\'atomtypes\']')
+    bugLev, root, 'atominfo/array[@name=\'atomtypes\']')
   resObj.typeNames       = atomTypeMrr['element']
   resObj.typeNums        = atomTypeMrr['atomspertype']
   resObj.typeMasses_amu  = atomTypeMrr['mass']
   resObj.typeValences    = atomTypeMrr['valence']
   resObj.typePseudos     = atomTypeMrr['pseudopotential']
-  if buglev >= 5:
+  if bugLev >= 5:
     print '\natomTypeMrr:'
     printMrr( atomTypeMrr)
     print 'typeNames: %s' % ( resObj.typeNames,)
@@ -431,7 +498,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
   # totalValence = sum( count[i] * valence[i])
   # PyLada calls this valence.
   resObj.totalValence = np.dot( resObj.typeNums, resObj.typeValences)
-  if buglev >= 5: print 'totalValence: %g' % (resObj.totalValence,)
+  if bugLev >= 5: print 'totalValence: %g' % (resObj.totalValence,)
 
   if resObj.numElectron != resObj.totalValence:
     throwerr('%g == numElectron != totalValence == %g' \
@@ -446,8 +513,8 @@ def parseXml( buglev, inXml, maxLev, resObj):
   #   atomtype: [1 2 2 2 2]
 
   atomMrr = getArrayByPath(
-    buglev, root, 'atominfo/array[@name=\'atoms\']')
-  if buglev >= 5:
+    bugLev, root, 'atominfo/array[@name=\'atoms\']')
+  if bugLev >= 5:
     print '\natomMrr:'
     printMrr( atomMrr)
 
@@ -458,26 +525,42 @@ def parseXml( buglev, inXml, maxLev, resObj):
   resObj.atomPseudos = natom * [None]
   for ii in range( natom):
     ix = atomMrr['atomtype'][ii] - 1       # change to origin 0
+    if resObj.atomNames[ii] != resObj.typeNames[ix]: throwerr('name mismatch')
     resObj.atomMasses_amu[ii]   = resObj.typeMasses_amu[ix]
     resObj.atomValences[ii] = resObj.typeValences[ix]
     resObj.atomPseudos[ii] = resObj.typePseudos[ix]
-    if resObj.atomNames[ii] != resObj.typeNames[ix]:
-      throwerr('name mismatch')
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'atomNames: %s' % ( resObj.atomNames,)
     print 'atomMasses_amu: %s' % ( resObj.atomMasses_amu,)
     print 'atomValences: %s' % ( resObj.atomValences,)
     print 'atomPseudos: %s' % ( resObj.atomPseudos,)
 
+  # Make sure typenames are in alphabetic order
+  for ii in range(len(resObj.typeNames) - 1):
+    if resObj.typeNames[ii] > resObj.typeNames[ii+1]:
+      throwerr('typeNames not in order')
 
-  if buglev >= 5: print '\n===== initial structure =====\n'
+  # Make sure atomnames are in alphabetic order
+  for ii in range(len(resObj.atomNames) - 1):
+    if resObj.atomNames[ii] > resObj.atomNames[ii+1]:
+      throwerr('atomNames not in order')
+
+  # Future: if need be:
+  ## Use ixs to sort parallel arrays typenames, typenums, etc,
+  ## by typenames alphabetic order
+  #ixs = range( tlen)
+  #def sortFunc( ia, ib):
+  #  return cmp( tnames[ia], tnames[ib])
+  #ixs.sort( sortFunc)
+
+  if bugLev >= 5: print '\n===== initial structure =====\n'
 
   # Initial structure
   # PyLada: vasp/extract/base.py: initial_structure()
   # OUTCAR: uses the appended INITIAL STRUCTURE section.
   lst = root.findall(
     'structure[@name=\'initialpos\']/crystal/varray[@name=\'basis\']/v')
-  if buglev >= 5: print 'len(lst) a:', len(lst)
+  if bugLev >= 5: print 'len(lst) a:', len(lst)
 
   # initial_structure
   # POSCAR specifies each basis vector as one row.
@@ -500,7 +583,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
     resObj.initialDirectPosMat, resObj.initialBasisMat)
   # xxx mult by scale factor?
 
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'initialBasisMat:\n%s' % (repr(resObj.initialBasisMat),)
     print 'initialRecipBasisMat:\n%s' % (repr(resObj.initialRecipBasisMat),)
     print 'initialDirectPosMat:\n%s' % (repr(resObj.initialDirectPosMat),)
@@ -512,7 +595,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
 
 
-  if buglev >= 5: print '\n===== final structure =====\n'
+  if bugLev >= 5: print '\n===== final structure =====\n'
 
   # structure == final pos
   # POSCAR specifies each basis vector as one row.
@@ -536,7 +619,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
     resObj.finalDirectPosMat, resObj.finalBasisMat)
   # xxx mult by scale factor?
 
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'finalBasisMat:\n%s' % (repr(resObj.finalBasisMat),)
     print 'finalRecipBasisMat:\n%s' % (repr(resObj.finalRecipBasisMat),)
     print 'finalDirectPosMat:\n%s' % (repr(resObj.finalDirectPosMat),)
@@ -548,7 +631,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
 
 
-  if buglev >= 5: print '\n===== kpoints =====\n'
+  if bugLev >= 5: print '\n===== kpoints =====\n'
 
   # kpoint coordinates.
   # Not in PyLada?
@@ -559,7 +642,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
   resObj.kpointRecipSpaceCartCoords \
     = np.dot( resObj.kpointRecipSpaceFracCoords, resObj.initialRecipBasisMat)
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'numKpoint: %g' % (resObj.numKpoint,)
     print 'kpointRecipSpaceFracCoords:\n%s' \
       % (repr(resObj.kpointRecipSpaceFracCoords),)
@@ -576,30 +659,30 @@ def parseXml( buglev, inXml, maxLev, resObj):
   resObj.kpointWeights = resObj.kpointWeights[:,0]   # Only 1 col in 2d array
   if resObj.kpointWeights.shape[0] != resObj.numKpoint:
     throwerr('numKpoint mismatch')
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'kpointWeights:\n%s' % (repr(resObj.kpointWeights),)
     print 'kpointWeights sum: %g' % (sum(resObj.kpointWeights),)
 
 
 
-  if buglev >= 5: print '\n===== final volume and density =====\n'
+  if bugLev >= 5: print '\n===== final volume and density =====\n'
 
   # volume, Angstrom^3
   volScale = 1.0
   resObj.finalVolumeCalc_ang3 = abs( np.linalg.det(
     volScale * resObj.finalBasisMat))
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'finalVolumeCalc_ang3: %g' % (resObj.finalVolumeCalc_ang3,)
 
   resObj.finalVolumeVasp_ang3 = getScalar(
     root, 'structure[@name=\'finalpos\']/crystal/i[@name=\'volume\']', float)
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'finalVolumeVasp_ang3: %g' % (resObj.finalVolumeVasp_ang3,)
 
   # reciprocal space volume, * (2*pi)**3
   invMat = np.linalg.inv( volScale * resObj.finalBasisMat)
   resObj.recVolumeCalc = abs( np.linalg.det( invMat)) * (2 * np.pi)**3
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'recVolumeCalc: origMat:\n%s' \
       % (repr(volScale * resObj.finalBasisMat),)
     print 'recVolumeCalc: invMat:\n%s' % (repr(invMat),)
@@ -612,25 +695,25 @@ def parseXml( buglev, inXml, maxLev, resObj):
   totMass = np.dot( atomTypeMrr['atomspertype'], atomTypeMrr['mass'])
   totMassGm = totMass *  1.660538921e-24        #  1.660538921e-24 g / amu
   resObj.density_g_cm3 = totMassGm / volCm
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'volCm: %g' % (volCm,)
     print 'totMassGm: %g' % (totMassGm,)
     print 'density_g_cm3: %g' % (resObj.density_g_cm3,)
 
 
-  if buglev >= 5: print '\n===== last calc forces =====\n'
+  if bugLev >= 5: print '\n===== last calc forces =====\n'
 
   resObj.finalForceMat_ev_ang = getRawArray(
     root, 'calculation[last()]/varray[@name=\'forces\']/v',
     0, 3, float)
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'finalForceMat_ev_ang:\n%s' % (repr(resObj.finalForceMat_ev_ang),)
 
   # Get stress
   resObj.finalStressMat_kbar = getRawArray(
     root, 'calculation[last()]/varray[@name=\'stress\']/v',
     3, 3, float)
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'finalStressMat_kbar:\n%s' % (repr(resObj.finalStressMat_kbar),)
 
   # Calc pressure
@@ -640,15 +723,15 @@ def parseXml( buglev, inXml, maxLev, resObj):
   #        &      -DYN%PSTRESS/(EVTOJ*1E22_q)*LATT_CUR%OMEGA
   diag = [resObj.finalStressMat_kbar[ii][ii] for ii in range(3)]
   resObj.finalPressure_kbar = sum( diag) / 3.0
-  if buglev >= 5: print 'finalPressure_kbar: %g' % (resObj.finalPressure_kbar,)
+  if bugLev >= 5: print 'finalPressure_kbar: %g' % (resObj.finalPressure_kbar,)
 
 
-  if buglev >= 5: print '\n===== eigenvalues and occupancies =====\n'
+  if bugLev >= 5: print '\n===== eigenvalues and occupancies =====\n'
 
   # PyLada: eigenvalues
   eigenMrr = getArrayByPath(
-    buglev, root, 'calculation[last()]/eigenvalues/array')
-  if buglev >= 5:
+    bugLev, root, 'calculation[last()]/eigenvalues/array')
+  if bugLev >= 5:
     print '\neigenMrr beg =====:'
     printMrr( eigenMrr)
     print '\neigenMrr end =====:'
@@ -670,7 +753,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
   # Caution: for non-magnetic, OUTCAR occMat = 2 while vasprun.xml = 1.
   # For magnetic, OUTCAR and vasprun.xml both have 1.
   resObj.occMat = eigenMrr['occ']
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'resObj.eigenMat.shape: ', resObj.eigenMat.shape
     print 'resObj.occMat.shape: ', resObj.occMat.shape
   
@@ -679,12 +762,12 @@ def parseXml( buglev, inXml, maxLev, resObj):
   if getProjected:
     for isp in range( resObj.numSpin):
       projEigenMrr = getArrayByPath(
-        buglev, root, 'calculation[last()]/projected/eigenvalues/array')
+        bugLev, root, 'calculation[last()]/projected/eigenvalues/array')
       
       # eigs and projected eigs are identical
       eigs = resObj.eigenMrr['eigene'][isp]
       peigs = projEigenMrr['eigene'][isp]
-      if buglev >= 5:
+      if bugLev >= 5:
         print 'Compare iegs, peigs for isp: %d' % (isp,)
         print '  eigs.shape:  ', eigs.shape
         print '  peigs.shape: ', peigs.shape
@@ -696,7 +779,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
       # occs and projected occs are identical
       occs = resObj.eigenMrr['occ'][isp]
       poccs = projEigenMrr['occ'][isp]
-      if buglev >= 5:
+      if bugLev >= 5:
         print 'Compare occs, poccs for isp: %d' % (isp,)
         print '  occs.shape:  ', occs.shape
         print '  poccs.shape: ', poccs.shape
@@ -705,16 +788,16 @@ def parseXml( buglev, inXml, maxLev, resObj):
         print '  Diff projoccs - occs: max maxabs: %g' \
           % (max( map( max, abs(poccs - occs))),)
 
-  if buglev >= 5: print '\n===== misc junk =====\n'
+  if bugLev >= 5: print '\n===== misc junk =====\n'
 
   # PyLada: vasp/extract/base.py: is_gw()
   resObj.isGw = False
   if resObj.algo in  ['gw', 'gw0', 'chi', 'scgw', 'scgw0']: resObj.isGw = True
-  if buglev >= 5: print 'isGw: %s' % (resObj.isGw,)
+  if bugLev >= 5: print 'isGw: %s' % (resObj.isGw,)
 
   # PyLada: vasp/extract/base.py: is_dft()
   resObj.isDft = not resObj.isGw
-  if buglev >= 5: print 'isDft: %s' % (resObj.isDft,)
+  if bugLev >= 5: print 'isDft: %s' % (resObj.isDft,)
 
   # functional: comes from appended FUNCTIONAL.
 
@@ -725,7 +808,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
   
 
-  if buglev >= 5: print '\n===== energy, efermi0 =====\n'
+  if bugLev >= 5: print '\n===== energy, efermi0 =====\n'
 
   resObj.energyNoEntrp = getScalar(
     root, 'calculation[last()]/energy/i[@name=\'e_wo_entrp\']', float)
@@ -739,10 +822,10 @@ def parseXml( buglev, inXml, maxLev, resObj):
 
   resObj.efermi0 = getScalar(
     root, 'calculation[last()]/dos/i[@name=\'efermi\']', float)
-  if buglev >= 5: print 'efermi0: %g' % (resObj.efermi0,)
+  if bugLev >= 5: print 'efermi0: %g' % (resObj.efermi0,)
 
 
-  if buglev >= 5: print '\n===== cbMin, vbMax, bandgap =====\n'
+  if bugLev >= 5: print '\n===== cbMin, vbMax, bandgap =====\n'
 
   # Find cbm = min of eigs >  efermi0
   # Find vbm = max of eigs <= efermi0
@@ -778,7 +861,7 @@ def parseXml( buglev, inXml, maxLev, resObj):
   resObj.bandgapa = min( resObj.bandgaps)
   resObj.bandgap  = resObj.cbMin - resObj.vbMax   # This is PyLada version
 
-  if buglev >= 5:
+  if bugLev >= 5:
     print 'cbmKpis: %s  cbms: %s' % (cbmKpis, cbms,)
     print 'vbmKpis: %s  vbms: %s' % (vbmKpis, vbms,)
     print 'cbMin: %g' % (resObj.cbMin,)
@@ -798,258 +881,256 @@ def parseXml( buglev, inXml, maxLev, resObj):
   return
 
 
+  ########################### End of parseXml ###############################
+
+
+  # The following code was used for initial testing,
+  # and who knows, someday may be useful again.
+
+  #print '\n'
+  #print '\ntesta:'
+  #lst = root.findall('kpoints/generation/v[@name=\'genvec2\']')
+  #amat = []
+  #for ele in lst:
+  #  text = ele.text
+  #  print '  ele.text: %s' % (text,)
+  #  toks = text.split()
+  #  vals = map( float, toks)
+  #  amat.append( vals)
+  #print 'amat: %s' % (amat,)
+
+  #amat = np.array( amat, dtype=float)
+  #print 'amat:\n%s' % (amat,)
+
+  #vec = getVec( root, 'kpoints/generation/v[@name=\'genvec2\']', 0, 0, float)
+  #print 'vec:\n%s' % (vec,)
+
+  #amat = getRawArray( root, 'kpoints/generation/v', 0, 0, float)
+  #print 'amat:\n%s' % (amat,)
+
+  #calcNodes = root.findall('calculation')
+  #print '\nlen(calcNodes): %d' % (len(calcNodes,))
+
+  ## pairs: (itot, en_wo_entrp) for the energy of each scstep
+  #scstep_withouts = []
+  ## pairs: (itot, en_wo_entrp) for the last energy of each calculation step
+  #calcstep_withouts = []
+
+  #basisMats = []
+  #recipBasisMats = []
+  #posMats = []
+  #forceMats = []
+  #stressMats = []
+
+  #itot = 0     # index all scsteps, across calculations
+
+  #ncalc = len( calcNodes)
+  #for icalc in range( ncalc):
+  #  cnode = calcNodes[icalc]
+  #  forceMat = getRawArray( cnode, 'varray[@name=\'forces\']/v', 0, 0, float)
+  #  print '\nforceMat for calcNodes[%d]:\n%s' % (icalc, forceMat,)
+  #  scNodes = cnode.findall('scstep')
+  #  print '    len(scNodes): %d' % (len(scNodes,))
+  #  for isc in range(len(scNodes)):
+  #    snode = scNodes[isc]
+  #    sc_e_fr = getScalar( snode, 'energy/i[@name=\'e_fr_energy\']', float)
+  #    sc_e_wo = getScalar( snode, 'energy/i[@name=\'e_wo_entrp\']', float)
+  #    sc_e_0  = getScalar( snode, 'energy/i[@name=\'e_0_energy\']', float)
+  #    print '    scNodes[%d]: sc_e_fr: %g  sc_e_wo: %g  sc_e_0: %g' \
+  #      % (isc, sc_e_fr, sc_e_wo, sc_e_0,)
+
+  #    scstep_withouts.append( (itot, sc_e_wo,))
+  #    itot += 1
+
+  #  # Structure for this calculation step
+  #  strucNodes = cnode.findall('structure')
+  #  if len(strucNodes) != 1: throwerr('calc structure not found')
+  #  snode = strucNodes[0]
+  #  basisMat = getRawArray(
+  #    snode, 'crystal/varray[@name=\'basis\']/v', 3, 3, float)
+  #  recipBasisMat = getRawArray(
+  #    snode, 'crystal/varray[@name=\'rec_basis\']/v', 3, 3, float)
+  #  # xxx should be nrow = num atoms
+  #  posMat = getRawArray(
+  #    snode, 'varray[@name=\'positions\']/v', 0, 3, float)
+  #  print '  Calc final: basisMat:\n%s' % (basisMat,)
+  #  print '  Calc final: recipBasisMat:\n%s' % (recipBasisMat,)
+  #  print '  Calc final: posMat:\n%s' % (posMat,)
+  #  basisMats.append( basisMat)
+  #  recipBasisMats.append( recipBasisMat)
+  #  posMats.append( posMat)
+
+  #  # Forces for this calculation step
+  #  forceNodes = cnode.findall('varray[@name=\'forces\']')
+  #  if len(forceNodes) != 1: throwerr('calc forces not found')
+  #  forceMat = getRawArray( forceNodes[0], 'v', 0, 3, float)
+  #  print '  Calc final: forceMat:\n%s' % (forceMat,)
+  #  forceMats.append( forceMat)
+
+  #  # Stress for this calculation step
+  #  stressNodes = cnode.findall('varray[@name=\'stress\']')
+  #  if len(stressNodes) != 1: throwerr('calc stresses not found')
+  #  stressMat = getRawArray( stressNodes[0], 'v', 3, 3, float)
+  #  print '  Calc final: stressMat:\n%s' % (stressMat,)
+  #  stressMats.append( stressMat)
+
+  #  # Final energy for this calculation step
+  #  enNodes = cnode.findall('energy')
+  #  if len(enNodes) != 1: throwerr('calc energy not found')
+  #  enode = enNodes[0]
+  #  c_e_fr = getScalar( enode, 'i[@name=\'e_fr_energy\']', float)
+  #  c_e_wo = getScalar( enode, 'i[@name=\'e_wo_entrp\']', float)
+  #  c_e_0  = getScalar( enode, 'i[@name=\'e_0_energy\']', float)
+  #  print '  Calc final: c_e_fr: %g  c_e_wo: %g  c_e_0: %g' \
+  #    % (c_e_fr, c_e_wo, c_e_0,)
+  #  calcstep_withouts.append( (itot - 1, c_e_wo,))
+
+  #print ''
+  #print 'scstep_withouts: %s' % (scstep_withouts,)
+  #print ''
+  #print 'calcstep_withouts: %s' % (calcstep_withouts,)
+
+  #scmat = np.array( scstep_withouts, dtype=float)
+  #print ''
+  #print 'scmat:\n%s' % (scmat,)
+
+  #calcmat = np.array( calcstep_withouts, dtype=float)
+  #print ''
+  #print 'calcmat:\n%s' % (calcmat,)
+
+
+  #print ''
+  #print 'Investigate DOS'
+  #icals = len(calcNodes) - 1
+  #cnode = calcNodes[icalc]
+  #setNodes = cnode.findall('dos/total/array/set/set[@comment=\'spin 1\']')
+  #print '    len(total setNodes): %d' % (len(setNodes),)
+  #print '    setNodes[0]: %s' % (setNodes[0],)
+  #if len(setNodes) != 1: throwerr('dos/total not found')
+  #dosTotalMat = getRawArray( setNodes[0], 'r', 0, 0, float)
+  #print ''
+  #print 'type(dosTotalMat): ', type(dosTotalMat)
+  #print 'dosTotalMat.shape: ', dosTotalMat.shape
+  #print ''
+  #print 'dosTotalMat:\n%s' % (dosTotalMat,)
+
+  #dosPartialMats = []
+  #partialSetNodes = cnode.findall('dos/partial/array/set')
+  #print '    len(partialSetNodes): %d' % (len(partialSetNodes),)
+  #if len(partialSetNodes) != 1: throwerr('dos/partial not found')
+  #partialSet = partialSetNodes[0]
+
+  #ionNodes = partialSet.findall('set')
+  #print '    len(ionNodes): %d' % (len(ionNodes),)
+  ## xxx should be nrow = num atoms
+  #for ii in range(len(ionNodes)):
+  #  dosPartialMat = getRawArray(
+  #    ionNodes[ii], 'set[@comment=\'spin 1\']/r', 0, 0, float)
+  #  print ''
+  #  print 'dosPartialMat %d:' % (ii,)
+  #  print 'type(dosPartialMat): ', type(dosPartialMat)
+  #  print 'dosPartialMat.shape: ', dosPartialMat.shape
+  #  print ''
+  #  print 'dosPartialMat:\n%s' % (dosPartialMat,)
+  #  dosPartialMats.append( dosPartialMat)
+
+  #print 'len(dosPartialMats): %d' % (len(dosPartialMats),)
 
 
 
 
-  ########################### STOP NOW ###############################
+  #print '\nbasisMats:  len: %d' % (len(basisMats),)
+  #for mat in basisMats: print '%s' % (mat,)
+
+  #print '\nrecipBasisMats:  len: %d' % (len(recipBasisMats),)
+  #for mat in recipBasisMats: print '%s' % (mat,)
+
+  #print '\nposMats:  len: %d' % (len(posMats),)
+  #for mat in posMats: print '%s' % (mat,)
+
+  #print '\nforceMats:  len: %d' % (len(forceMats),)
+  #for mat in forceMats: print '%s' % (mat,)
+
+  #print '\nstressMats:  len: %d' % (len(stressMats),)
+  #for mat in stressMats: print '%s' % (mat,)
+
+  #basisDeltas = calcMatDeltas( basisMats)
+  #recipBasisDeltas = calcMatDeltas( recipBasisMats)
+  #posDeltas = calcMatDeltas( posMats)
+  #forceDeltas = calcMatDeltas( forceMats)
+  #stressDeltas = calcMatDeltas( stressMats)
+
+  #print 'basisDeltas: %s' % ( basisDeltas,)
+  #print 'recipBasisDeltas: %s' % ( recipBasisDeltas,)
+  #print 'posDeltas: %s' % ( posDeltas,)
+  #print 'forceDeltas: %s' % ( forceDeltas,)
+  #print 'stressDeltas: %s' % ( stressDeltas,)
 
 
+  #import matplotlib
+  #matplotlib.use('tkagg')
+  #import matplotlib.pyplot as plt
+
+  #fig, axes = plt.subplots( 1, 1)
+  ###ax00 = axes[0,0]
+  #ax00 = axes
+  #ax00.plot( dosTotalMat[:,0], dosTotalMat[:,1], color='r', linestyle='-',
+  #  marker=None)
+  #ax00.set_xlabel('Energy, eV')
+  #ax00.set_ylabel('Number of states per unit cell')
+  #ax00.set_title('Density of states')
+  #ax00.xaxis.grid(color='lightblue', linestyle='solid')
+  #ax00.yaxis.grid(color='lightblue', linestyle='solid')
+  ##plt.show()
 
 
+  ##fig, ax = plt.subplots()
+  ##
+  ##ax.plot( scmat[:,0], scmat[:,1], 'b-')
+  ##ax.plot( calcmat[:,0], calcmat[:,1], 'bo')
+  ##ax.set_ylim( calcmat[-1,1] - 5, calcmat[-1,1] + 5)
+  ##ax.xaxis.grid(color='lightblue', linestyle='solid')
+  ##ax.yaxis.grid(color='lightblue', linestyle='solid')
+  ##
+  ##savefig('tempa.png', dpi=100, orientation='landscape', papertype='letter')
+  ##
+  ##plt.show()
 
 
+  #tnodes = root.findall('calculation[last()]')
+  #printNode( tnodes[0], 0, 1)
 
+  #tnodes = root.findall('calculation[last()]/eigenvalues')
+  #printNode( tnodes[0], 0, 1)
 
+  #tnodes = root.findall('calculation[last()]/eigenvalues/array')
+  #printNode( tnodes[0], 0, 1)
 
-  print '\n'
-  print '\ntesta:'
-  lst = root.findall('kpoints/generation/v[@name=\'genvec2\']')
-  amat = []
-  for ele in lst:
-    text = ele.text
-    print '  ele.text: %s' % (text,)
-    toks = text.split()
-    vals = map( float, toks)
-    amat.append( vals)
-  print 'amat: %s' % (amat,)
+  #res = getArrayByPath(
+  #  bugLev, root, 'calculation[last()]/eigenvalues/array')
+  #print '\ncalculation[last()]/eigenvalues:\n%s' % (res,)
 
-  amat = np.array( amat, dtype=float)
-  print 'amat:\n%s' % (amat,)
-
-  vec = getVec( root, 'kpoints/generation/v[@name=\'genvec2\']', 0, 0, float)
-  print 'vec:\n%s' % (vec,)
-
-  amat = getRawArray( root, 'kpoints/generation/v', 0, 0, float)
-  print 'amat:\n%s' % (amat,)
-
-  calcNodes = root.findall('calculation')
-  print '\nlen(calcNodes): %d' % (len(calcNodes,))
-
-  # pairs: (itot, en_wo_entrp) for the energy of each scstep
-  scstep_withouts = []
-  # pairs: (itot, en_wo_entrp) for the last energy of each calculation step
-  calcstep_withouts = []
-
-  basisMats = []
-  recipBasisMats = []
-  posMats = []
-  forceMats = []
-  stressMats = []
-
-  itot = 0     # index all scsteps, across calculations
-
-  ncalc = len( calcNodes)
-  for icalc in range( ncalc):
-    cnode = calcNodes[icalc]
-    forceMat = getRawArray( cnode, 'varray[@name=\'forces\']/v', 0, 0, float)
-    print '\nforceMat for calcNodes[%d]:\n%s' % (icalc, forceMat,)
-    scNodes = cnode.findall('scstep')
-    print '    len(scNodes): %d' % (len(scNodes,))
-    for isc in range(len(scNodes)):
-      snode = scNodes[isc]
-      ##print '#########:'; printNode(snode, 0, 10)
-      sc_e_fr = getScalar( snode, 'energy/i[@name=\'e_fr_energy\']', float)
-      sc_e_wo = getScalar( snode, 'energy/i[@name=\'e_wo_entrp\']', float)
-      sc_e_0  = getScalar( snode, 'energy/i[@name=\'e_0_energy\']', float)
-      print '    scNodes[%d]: sc_e_fr: %g  sc_e_wo: %g  sc_e_0: %g' \
-        % (isc, sc_e_fr, sc_e_wo, sc_e_0,)
-
-      scstep_withouts.append( (itot, sc_e_wo,))
-      itot += 1
-
-    # Structure for this calculation step
-    strucNodes = cnode.findall('structure')
-    if len(strucNodes) != 1: throwerr('calc structure not found')
-    snode = strucNodes[0]
-    basisMat = getRawArray(
-      snode, 'crystal/varray[@name=\'basis\']/v', 3, 3, float)
-    recipBasisMat = getRawArray(
-      snode, 'crystal/varray[@name=\'rec_basis\']/v', 3, 3, float)
-    # xxx should be nrow = num atoms
-    posMat = getRawArray(
-      snode, 'varray[@name=\'positions\']/v', 0, 3, float)
-    print '  Calc final: basisMat:\n%s' % (basisMat,)
-    print '  Calc final: recipBasisMat:\n%s' % (recipBasisMat,)
-    print '  Calc final: posMat:\n%s' % (posMat,)
-    basisMats.append( basisMat)
-    recipBasisMats.append( recipBasisMat)
-    posMats.append( posMat)
-
-    # Forces for this calculation step
-    forceNodes = cnode.findall('varray[@name=\'forces\']')
-    if len(forceNodes) != 1: throwerr('calc forces not found')
-    forceMat = getRawArray( forceNodes[0], 'v', 0, 3, float)
-    print '  Calc final: forceMat:\n%s' % (forceMat,)
-    forceMats.append( forceMat)
-
-    # Stress for this calculation step
-    stressNodes = cnode.findall('varray[@name=\'stress\']')
-    if len(stressNodes) != 1: throwerr('calc stresses not found')
-    stressMat = getRawArray( stressNodes[0], 'v', 3, 3, float)
-    print '  Calc final: stressMat:\n%s' % (stressMat,)
-    stressMats.append( stressMat)
-
-    # Final energy for this calculation step
-    enNodes = cnode.findall('energy')
-    if len(enNodes) != 1: throwerr('calc energy not found')
-    enode = enNodes[0]
-    c_e_fr = getScalar( enode, 'i[@name=\'e_fr_energy\']', float)
-    c_e_wo = getScalar( enode, 'i[@name=\'e_wo_entrp\']', float)
-    c_e_0  = getScalar( enode, 'i[@name=\'e_0_energy\']', float)
-    print '  Calc final: c_e_fr: %g  c_e_wo: %g  c_e_0: %g' \
-      % (c_e_fr, c_e_wo, c_e_0,)
-    calcstep_withouts.append( (itot - 1, c_e_wo,))
-
-  print ''
-  print 'scstep_withouts: %s' % (scstep_withouts,)
-  print ''
-  print 'calcstep_withouts: %s' % (calcstep_withouts,)
-
-  scmat = np.array( scstep_withouts, dtype=float)
-  print ''
-  print 'scmat:\n%s' % (scmat,)
-
-  calcmat = np.array( calcstep_withouts, dtype=float)
-  print ''
-  print 'calcmat:\n%s' % (calcmat,)
-
-
-  print ''
-  print 'Investigate DOS'
-  icals = len(calcNodes) - 1
-  cnode = calcNodes[icalc]
-  setNodes = cnode.findall('dos/total/array/set/set[@comment=\'spin 1\']')
-  print '    len(total setNodes): %d' % (len(setNodes),)
-  print '    setNodes[0]: %s' % (setNodes[0],)
-  if len(setNodes) != 1: throwerr('dos/total not found')
-  dosTotalMat = getRawArray( setNodes[0], 'r', 0, 0, float)
-  print ''
-  print 'type(dosTotalMat): ', type(dosTotalMat)
-  print 'dosTotalMat.shape: ', dosTotalMat.shape
-  print ''
-  print 'dosTotalMat:\n%s' % (dosTotalMat,)
-
-  dosPartialMats = []
-  partialSetNodes = cnode.findall('dos/partial/array/set')
-  print '    len(partialSetNodes): %d' % (len(partialSetNodes),)
-  if len(partialSetNodes) != 1: throwerr('dos/partial not found')
-  partialSet = partialSetNodes[0]
-
-  ionNodes = partialSet.findall('set')
-  print '    len(ionNodes): %d' % (len(ionNodes),)
-  # xxx should be nrow = num atoms
-  for ii in range(len(ionNodes)):
-    dosPartialMat = getRawArray(
-      ionNodes[ii], 'set[@comment=\'spin 1\']/r', 0, 0, float)
-    print ''
-    print 'dosPartialMat %d:' % (ii,)
-    print 'type(dosPartialMat): ', type(dosPartialMat)
-    print 'dosPartialMat.shape: ', dosPartialMat.shape
-    print ''
-    print 'dosPartialMat:\n%s' % (dosPartialMat,)
-    dosPartialMats.append( dosPartialMat)
-
-  print 'len(dosPartialMats): %d' % (len(dosPartialMats),)
-
-
-
-
-  print '\nbasisMats:  len: %d' % (len(basisMats),)
-  for mat in basisMats: print '%s' % (mat,)
-
-  print '\nrecipBasisMats:  len: %d' % (len(recipBasisMats),)
-  for mat in recipBasisMats: print '%s' % (mat,)
-
-  print '\nposMats:  len: %d' % (len(posMats),)
-  for mat in posMats: print '%s' % (mat,)
-
-  print '\nforceMats:  len: %d' % (len(forceMats),)
-  for mat in forceMats: print '%s' % (mat,)
-
-  print '\nstressMats:  len: %d' % (len(stressMats),)
-  for mat in stressMats: print '%s' % (mat,)
-
-  basisDeltas = calcMatDeltas( basisMats)
-  recipBasisDeltas = calcMatDeltas( recipBasisMats)
-  posDeltas = calcMatDeltas( posMats)
-  forceDeltas = calcMatDeltas( forceMats)
-  stressDeltas = calcMatDeltas( stressMats)
-
-  print 'basisDeltas: %s' % ( basisDeltas,)
-  print 'recipBasisDeltas: %s' % ( recipBasisDeltas,)
-  print 'posDeltas: %s' % ( posDeltas,)
-  print 'forceDeltas: %s' % ( forceDeltas,)
-  print 'stressDeltas: %s' % ( stressDeltas,)
-
-
-
-
-  import matplotlib
-  matplotlib.use('tkagg')
-  import matplotlib.pyplot as plt
-
-  fig, axes = plt.subplots( 1, 1)
-  ##ax00 = axes[0,0]
-  ax00 = axes
-  ax00.plot( dosTotalMat[:,0], dosTotalMat[:,1], color='r', linestyle='-',
-    marker=None)
-  ax00.set_xlabel('Energy, eV')
-  ax00.set_ylabel('Number of states per unit cell')
-  ax00.set_title('Density of states')
-  ax00.xaxis.grid(color='lightblue', linestyle='solid')
-  ax00.yaxis.grid(color='lightblue', linestyle='solid')
-  #plt.show()
-
-
-#fig, ax = plt.subplots()
-#
-#ax.plot( scmat[:,0], scmat[:,1], 'b-')
-#ax.plot( calcmat[:,0], calcmat[:,1], 'bo')
-#ax.set_ylim( calcmat[-1,1] - 5, calcmat[-1,1] + 5)
-#ax.xaxis.grid(color='lightblue', linestyle='solid')
-#ax.yaxis.grid(color='lightblue', linestyle='solid')
-#
-#savefig('tempa.png', dpi=100, orientation='landscape', papertype='letter')
-#
-#plt.show()
-
-
-  tnodes = root.findall('calculation[last()]')
-  print '########## tnodes    a: %s' % (tnodes,)
-  print '########## tnodes[0] a: %s' % (tnodes[0],)
-  printNode( tnodes[0], 0, 1)
-
-  tnodes = root.findall('calculation[last()]/eigenvalues')
-  print '########## tnodes    b: %s' % (tnodes,)
-  print '########## tnodes[0] b: %s' % (tnodes[0],)
-  printNode( tnodes[0], 0, 1)
-
-  tnodes = root.findall('calculation[last()]/eigenvalues/array')
-  print '########## tnodes    c: %s' % (tnodes,)
-  print '########## tnodes[0] c: %s' % (tnodes[0],)
-  printNode( tnodes[0], 0, 1)
-
-  res = getArrayByPath(
-    buglev, root, 'calculation[last()]/eigenvalues/array')
-  print '\ncalculation[last()]/eigenvalues:\n%s' % (res,)
-
-  print '\n'
+  #print '\n'
 
 #====================================================================
 
 
 def printNode( node, curLev, maxLev):
+  '''
+  Recursively prints an XML tree, given an xml.etree.cElementTree node.
+
+  **Parameters**:
+
+  * node (xml.etree.ElementTree.Element): The root of the XML tree.
+  * curLev (int): The current recursion level.  Starts at 0 and
+    is incremented for each recursive call.
+  * maxLev (int): The max number of levels to print
+
+  **Returns**:
+
+  * None
+  '''
+
   if curLev <= maxLev:
     if node.tail == None: tail = 'None'
     else: tail = '"%s"' % (node.tail.strip(),)
@@ -1066,7 +1147,25 @@ def printNode( node, curLev, maxLev):
 #====================================================================
 
 def parseText( path, nmin, nmax, dtype, text):
-  if buglev >= 1: print '  parseText: ele.text: %s' % (text,)
+  '''
+  Splits ``text`` into tokens, and converts each token to ``dtype``.
+
+  Called by getVec, getRawArray.
+
+  **Parameters**:
+
+  * path (str): the XML tree path to the current node, for error msgs.
+  * nmin (int): the minimum num tokens.  If fewer are found, throwerr.
+  * nmax (int): the maximum num tokens.  If more are found, throwerr.
+  * dtype (python type): Either int, float, or str: the tokens
+    are converted to dtype.
+  * text (str): the text string to be split.
+
+  **Returns**:
+
+  * list of tokens each having type = dtype.
+  '''
+
   toks = text.split()
   ntok = len( toks)
   if ntok < nmin:
@@ -1089,9 +1188,28 @@ def parseText( path, nmin, nmax, dtype, text):
     else: throwerr('unknown dtype for path: "%s"' % (path,))
     vals[ii] = val
   return vals
+
+
 #====================================================================
 
 def getVec( root, path, nmin, nmax, dtype):
+  '''
+  Gets text at the specified XML path, splits, and converts tokens ``dtype``.
+
+  **Parameters**:
+
+  * root (xml.etree.ElementTree.Element): The current XML node.
+  * path (str): the XML path from the current node.
+  * nmin (int): the minimum num tokens.  If fewer are found, throwerr.
+  * nmax (int): the maximum num tokens.  If more are found, throwerr.
+  * dtype (python type): Either int, float, or str: the tokens
+    are converted to dtype.
+
+  **Returns**:
+
+  * list of tokens each having type = dtype.
+  '''
+
   text = getString( root, path)
   vals = parseText( path, nmin, nmax, dtype, text)
   return vals
@@ -1101,10 +1219,19 @@ def getVec( root, path, nmin, nmax, dtype):
 # Return stripped string
 
 def getString( root, path):
-#xxx all ### start here
-  print '######### getString: root: ', root
-  print '######### getString: path: ', path
-  print '######### getString: repr(path): ', repr(path)
+  '''
+  Gets text at the specified XML path, insures there's just 1, and returns it.
+
+  **Parameters**:
+
+  * root (xml.etree.ElementTree.Element): The current XML node.
+  * path (str): the XML path from the current node.
+
+  **Returns**:
+
+  * stripped string.
+  '''
+
   lst = root.findall( path)
   if len(lst) == 0:
     throwerr('path not found: "%s"' % (path,))
@@ -1117,6 +1244,20 @@ def getString( root, path):
 #====================================================================
 
 def getScalar( root, path, dtype):
+  '''
+  Gets text at the specified XML path, and converts it to ``dtype``.
+
+  **Parameters**:
+
+  * root (xml.etree.ElementTree.Element): The current XML node.
+  * path (str): the XML path from the current node.
+  * dtype (python type): Either int, float, or str: the token
+    is converted to dtype.
+
+  **Returns**:
+
+  * item having type = dtype.
+  '''
 
   lst = getVec( root, path, 1, 1, dtype)
   return lst[0]
@@ -1124,6 +1265,26 @@ def getScalar( root, path, dtype):
 #====================================================================
 
 def getRawArray( root, path, nrow, ncol, dtype):
+  '''
+  Gets text at the specified XML path, and converts to a
+  2D numpy array of ``dtype``.
+
+  The text must be organized as one text element per row.
+
+  **Parameters**:
+
+  * root (xml.etree.ElementTree.Element): The current XML node.
+  * path (str): the XML path from the current node.
+  * nrow (int): the number of rows.  If 0, allow any number.
+  * ncol (int): the number of columns.  If 0, allow any number.
+  * dtype (python type): Either int, float, or str: the tokens
+    are converted to dtype.
+
+  **Returns**:
+
+  * A regular 2-dimensional numpy array of dtype.
+  '''
+
   lst = root.findall( path)
   nlst = len( lst)
   if nlst == 0: throwerr('path not found: "%s"' % (path,))
@@ -1155,10 +1316,28 @@ def getRawArray( root, path, nrow, ncol, dtype):
 
 #====================================================================
 
-def getArrayByPath( buglev, baseNode, path):
+def getArrayByPath( bugLev, baseNode, path):
+  '''
+  Converts an XML ``<array>`` element in vasprun.xml
+  to a map with an array.
+
+  See :func:`getArrayByNode` for details.
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * baseNode (xml.etree.ElementTree.Element): current XML node
+  * path (str): XML path from baseNode for the ``<array>`` element.
+
+  **Returns**:
+
+  * A Python array
+  '''
+
+
   arrNodes = baseNode.findall( path)
   if len(arrNodes) != 1: throwerr('path not found')
-  res = getArrayByNode( buglev, arrNodes[0])
+  res = getArrayByNode( bugLev, arrNodes[0])
   return res
 
 #====================================================================
@@ -1173,13 +1352,139 @@ def getArrayByPath( buglev, baseNode, path):
 #     element: ['Mo' 'Mo' 'S' 'S' 'S' 'S']
 #     atomtype: [1 1 2 2 2 2]
 
-def getArrayByNode( buglev, arrNode):
+def getArrayByNode( bugLev, arrNode):
+  '''
+  Converts an XML ``<array>`` element in vasprun.xml
+  to a map with an array.
+
+  Calls getArraySub to extract each field.
+  The output Python map has the following structure:
+
+  =============   ========================================================
+  key             value
+  =============   ========================================================
+  _dimLens        numpy vec of dimension lengths.
+                  len( dimLens) == n == numDimensions.
+  _dimNames       numpy vec of dimension names.
+                  len( dimLens) == n == numDimensions.
+  _fieldNames     numpy vec of field names in the parallel arrays.
+                  len( fieldNames) == numVariables.
+  _fieldTypes     numpy vec of field types in the parallel arrays.
+                  len( fieldTypes) == numVariables.
+                  The types are: 'i': int, 'f': float, 's': str
+
+  <fieldName>     numpy n-dimensional array of the field <fieldName>
+  <fieldName>     numpy n-dimensional array of the field <fieldName>
+  <fieldName>     numpy n-dimensional array of the field <fieldName>
+  ...
+  =============   ========================================================
+
+  Example XML for a 1-dimensional array with 2 fields: ::
+
+    <array name="atoms" >
+     <dimension dim="1">ion</dimension>
+     <field type="string">element</field>
+     <field type="int">atomtype</field>
+     <set>
+      <rc><c>C </c><c>   1</c></rc>
+      <rc><c>Fe</c><c>   2</c></rc>
+      <rc><c>Fe</c><c>   2</c></rc>
+      <rc><c>Fe</c><c>   2</c></rc>
+      <rc><c>Fe</c><c>   2</c></rc>
+     </set>
+    </array>
+
+  Example resulting map: ::
+
+    _dimLens: [5]
+    _dimNames: ['ion']
+    _fieldNames: ['element' 'atomtype']
+    _fieldTypes: ['s' 'i']
+    element: ['C' 'Fe' 'Fe' 'Fe' 'Fe']
+    atomtype: [1 2 2 2 2]
+
+  Multiple dimension arrays also are supported.
+
+  The vasprun.xml handling of dimensions is unusual.
+  What they claim is ``dim="1"`` actually is the least
+  significant dimension and varies fastest, both
+  in the XML data and in our resulting Python array.
+
+  So the XML ``<dimension dim="1">band</dimension>``
+  becomes the last dimension in the resulting Python array.
+
+  Example XML for a 3 dimensional array with 2 fields: ::
+
+    <array>
+     <dimension dim="1">band</dimension>
+     <dimension dim="2">kpoint</dimension>
+     <dimension dim="3">spin</dimension>
+     <field>eigene</field>
+     <field>occ</field>
+     <set>
+      <set comment="spin 1">
+       <set comment="kpoint 1">
+        <r>   -6.5058    1.0000 </r>
+        <r>    0.2537    1.0000 </r>
+        <r>    0.7101    1.0000 </r>
+        ...
+        <r>    8.1390    0.0000 </r>
+       </set>
+       <set comment="kpoint 2">
+        <r>   -6.3718    1.0000 </r>
+        <r>   -0.0841    1.0000 </r>
+        <r>    0.7508    1.0000 </r>
+       ...
+       </set>
+       <set comment="kpoint 101">
+        <r>   -5.8567    1.0000 </r>
+        <r>   -0.0854    1.0000 </r>
+        <r>    0.9602    1.0000 </r>
+        <r>    7.7174    0.0000 </r>
+        <r>    7.8556    0.0000 </r>
+       </set>
+      </set>
+     </set>
+    </array>
+
+  Example resulting map: ::
+
+    _dimLens: [  1 101  22]
+    _dimNames: ['spin' 'kpoint' 'band']
+    _fieldNames: ['eigene' 'occ']
+    _fieldTypes: ['f' 'f']
+    eigene: [[[-6.5058  0.2537  0.7101 ...,  7.6096  7.8817  8.139 ]
+        [-6.3718 -0.0841  0.7508 ...,  7.481   7.8491  7.9595]
+        [-6.1332 -0.611   1.0672 ...,  7.0857  7.8655  7.9314]
+        ...,
+        [-5.8462  0.3687  0.9498 ...,  7.1721  7.4739  7.6631]
+        [-5.8016  0.5503  0.5886 ...,  7.4113  7.5794  7.7332]
+        [-5.8567 -0.0854  0.9602 ...,  7.2729  7.7174  7.8556]]]
+    occ: [[[ 1.      1.      1.     ...,  0.      0.      0.    ]
+        [ 1.      1.      1.     ...,  0.      0.      0.    ]
+        [ 1.      1.      1.     ...,  1.      0.      0.    ]
+        ...,
+        [ 1.      1.      1.     ...,  1.      0.      0.    ]
+        [ 1.      1.      1.     ...,  0.      0.      0.    ]
+        [ 1.      1.      1.     ...,  0.9751  0.      0.    ]]]
+
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * node (xml.etree.ElementTree.Element):
+    The XML node for the ``<array>`` element.
+
+  **Returns**:
+
+  * A Python array
+  '''
 
   dimNodes = arrNode.findall('dimension')
   ndim = len( dimNodes)
   if ndim == 0: throwerr('no dimensions found')
   dimNames = [nd.text for nd in dimNodes]
-  dimNames.reverse()         # dimNames are in reverse order in xml
+  dimNames.reverse()         # dimNames are in reverse order in XML
   dimNames = np.array( dimNames, dtype=str)
   dimLens = np.zeros( [ndim], dtype=int)
 
@@ -1199,7 +1504,7 @@ def getArrayByNode( buglev, arrNode):
   resList = nfield * [None]
   for ifield in range( nfield):
     amat = getArraySub(
-      buglev,
+      bugLev,
       setNode,
       ifield,
       fieldTypes,
@@ -1226,34 +1531,48 @@ def getArrayByNode( buglev, arrNode):
     '_fieldTypes': fieldTypeStgs,
   }
   for ii in range(len(fieldNames)):
-    ar = np.array( resList[ii])
+    ar = resList[ii]
     if not all(ar.shape == np.array(dimLens)): throwerr('dimLens mismatch')
     resMap[fieldNames[ii]] = ar
 
   return resMap
 
-#====================================================================
-
-def convertTypes( tp, vec):
-  if isinstance( vec[0], str):
-    for ii in range(len(vec)):
-      'print '#############' type val bef:', type(vec[ii]), '  aft: ', type(tp(vec[ii]))
-      vec[ii] = tp( vec[ii])
-  elif isinstance( vec[0], list):
-    for subVec in vec:
-      convertTypes( tp, subVec)             # recursion
-  else: throwerr('unknown array structure')
 
 #====================================================================
 
 
 def getArraySub(
-  buglev,
+  bugLev,
   setNode,
   ifield,
   fieldTypes,
   idim,
   dimLens):
+  '''
+  Decodes the XML for one field (one variable) for an
+  ``<array>``.
+
+  Called by getArrayByNode.  See :func:`getArrayByNode` for details.
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * setNode (xml.etree.ElementTree.Element): the element for ``<set>``.
+  * ifield (int): the index number of the field.
+  * fieldTypes (int[]): the numeric field types so far.
+    The numeric types are: 0: int, 1: float, 2: str.
+    We take the max of the field types.
+  * tp (Python type): The desired type.
+  * idim (int): dimension number == recursion level == array nest level.
+    0 on the first call, 1 for the next level array, etc.
+  * dimLens (int[]): list of dimension lengths.  Updated.
+
+  **Returns**:
+
+  * A Python array with elements of type str.
+    The caller converts them to the correct type.
+  '''
+
 
   nfield = len(fieldTypes)
   ndim = len(dimLens)
@@ -1321,7 +1640,7 @@ def getArraySub(
     resVec = nset * [None]
     for iset in range(nset):
       resVec[iset] = getArraySub(          # recursion
-        buglev,
+        bugLev,
         setNodes[iset],
         ifield,
         fieldTypes,
@@ -1333,16 +1652,69 @@ def getArraySub(
 
 #====================================================================
 
+
+def convertTypes( tp, vec):
+  '''
+  Recursively converts the elements of an array ``vec``
+  from str to the specified type.
+
+  **Parameters**:
+
+  * tp (Python type): The desired type.
+  * vec (str[] or str[][] or ...): the array to be converted.
+
+  **Returns**:
+
+  * A Python array with elements of type ``tp``.
+  '''
+
+  if isinstance( vec[0], str):
+    for ii in range(len(vec)):
+      vec[ii] = tp( vec[ii])
+  elif isinstance( vec[0], list):
+    for subVec in vec:
+      convertTypes( tp, subVec)             # recursion
+  else: throwerr('unknown array structure')
+
+#====================================================================
+
+
 def maxAbsDiff( mata, matb):
+  '''
+  Returns the max abs diff between two 2D numpy matrices.
+
+  **Parameters**:
+
+  * mata (numpy 2D array): Array to be compared.
+  * matb (numpy 2D array): Array to be compared.
+
+  **Returns**:
+
+  * float scalar: max_i( max_j( abs( mata[i][j] - matb[i][j]))
+  '''
+
   (nrow,ncol) = mata.shape
   if matb.shape != mata.shape: throwerr('maxAbsDiff: shape mismatch')
-  diffMat =  abs( matb) - abs( mata)
+  diffMat =  abs( matb - mata)
   res = max( map( max, diffMat))
   return res
 
 #====================================================================
 
 def calcMatDeltas( mats):
+  '''
+  Returns the max abs diffs between adjacent pairs of a
+  list of 2D numpy matrices.
+
+  **Parameters**:
+
+  * mats (list of 2D numpy matrices)
+
+  **Returns**:
+
+  * deltas (float[]): deltas[k] = maxAbsDiff( mats[k-1], mats[k])
+  '''
+
   nmat = len( mats)
   deltas = []
   for ii in range( 1, nmat):
@@ -1353,6 +1725,18 @@ def calcMatDeltas( mats):
 #====================================================================
 
 def printMrr( vmap):
+  '''
+  Prints the Mrr map returned by getArrayByPath or getArrayByNode.
+
+  **Parameters**:
+
+  * vmap (map): the MRR map
+
+  **Returns**:
+
+  * None
+  '''
+
   keys = vmap.keys()
   keys.sort()
   for key in keys:
@@ -1367,6 +1751,22 @@ def printMrr( vmap):
 #====================================================================
 
 def throwerr( msg):
+  '''
+  Prints an error message and raises Exception.
+
+  **Parameters**:
+
+  * msg (str): Error message.
+
+  **Returns**
+
+  * (Never returns)
+  
+  **Raises**
+
+  * Exception
+  '''
+
   print msg
   print >> sys.stderr, msg
   raise Exception( msg)

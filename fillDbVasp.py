@@ -1,13 +1,17 @@
 #!/usr/bin/env python
 
-import datetime, json, os, re, sys
+import datetime, hashlib, json, os, re, sys
 import numpy as np
 import psycopg2
 
-import wrapUpload
 import readVasp
+import wrapReceive
+import wrapUpload
 
 
+#====================================================================
+
+vasprunName = 'vasprun.xml'
 
 #====================================================================
 
@@ -15,12 +19,14 @@ import readVasp
 def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
-  print '  -bugLev     <int>      debug level'
-  print '  -func       <string>   createTableModel / createTableContrib'
-  print '                         / fillTable'
-  print '  -archDir    <string>   input dir tree'
-  print '  -wrapId     <string>'
-  print '  -inSpec     <string>   inSpecJsonFile'
+  print '  -bugLev      <int>      Debug level'
+  print '  -func        <string>   CreateTableModel / createTableContrib'
+  print '                          / fillTable'
+  print '  -deleteTable <boolean>  If func is create*, using -deleteTable true'
+  print '                          allows deletion of old table first.'
+  print '  -archDir     <string>   Input dir tree'
+  print '  -wrapId      <string>   Full uui or "first" or "last"'
+  print '  -inSpec      <string>   JSON file containing parameters.'
   sys.exit(1)
 
 
@@ -29,23 +35,27 @@ def badparms( msg):
 
 def main():
   '''
-  Read a dir tree and add rows to the database table "model".
+  Reads a dir tree and adds rows to the database table "model".
   The function is determined by the **-func** parameter; see below.
 
   This function is called by wrapReceive.py.
 
   Command line parameters:
 
-  ==============   =========    ==============================================
-  Parameter        Type         Description
-  ==============   =========    ==============================================
-  **-bugLev**      integer      Debug level.  Normally 0.
-  **-func**        string       Function.  See below.
-  **-archDir**     string       Input dir tree.
-  **-wrapId**      string       The unique id of this upload, created
-                                by wrapReceive.py from the uploaded file name.
-  **-inSpec**      string       JSON file containing parameters.  See below.
-  ==============   =========    ==============================================
+  ================  =========    ==============================================
+  Parameter         Type         Description
+  ================  =========    ==============================================
+  **-bugLev**       integer      Debug level.  Normally 0.
+  **-func**         string       Function.  See below.
+  **-deleteTable**  boolean      If func is create*, using -deleteTable true
+                                 allows deletion of old table first.
+  **-archDir**      string       Input dir tree.
+  **-wrapId**       string       The unique id of this upload, created
+                                 by wrapReceive.py from the uploaded file name.
+                                 Or it can be "first" or "last", to use the
+                                 first or last found uui.
+  **-inSpec**       string       JSON file containing parameters.  See below.
+  ================  =========    ==============================================
 
   **Values for the -func Parameter:**
 
@@ -91,6 +101,7 @@ def main():
 
   bugLev   = None
   func     = None
+  deleteTable = None
   archDir  = None
   wrapId   = None
   inSpec   = None
@@ -102,6 +113,10 @@ def main():
     val = sys.argv[iarg+1]
     if   key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
+    elif key == '-deleteTable':
+      if val == 'false': deleteTable = False
+      elif val == 'true': deleteTable = True
+      else: badparms('invalid -deleteTable arg')
     elif key == '-archDir': archDir = val
     elif key == '-wrapId': wrapId = val
     elif key == '-inSpec': inSpec = val
@@ -109,11 +124,26 @@ def main():
 
   if bugLev == None: badparms('parm not specified: -bugLev')
   if func == None: badparms('parm not specified: -func')
+  if deleteTable == None: badparms('parm not specified: -deleteTable')
   if archDir == None: badparms('parm not specified: -archDir')
   if wrapId == None: badparms('parm not specified: -wrapId')
   if inSpec == None: badparms('parm not specified: -inSpec')
 
-  fillDbVasp( bugLev, func, archDir, wrapId, inSpec)
+  if wrapId == 'first' or wrapId == 'last':
+    wrapIdUse = None
+    names = os.listdir( archDir)
+    names.sort()
+    for nm in names:
+      if nm.endswith('.flag'):
+        # If matches, returns (wrapId, adate, userid, hostname).
+        wrapIdUse = wrapUpload.parseUui( nm)
+        if wrapIdUse != None and wrapId == 'first': break
+    if wrapIdUse == None:
+      throwerr('wrapId is first or last, but no matching flag file found')
+
+  else: wrapIdUse = wrapId
+
+  fillDbVasp( bugLev, func, deleteTable, archDir, wrapIdUse, inSpec)
 
 
 #====================================================================
@@ -123,12 +153,42 @@ def main():
 def fillDbVasp(
   bugLev,
   func,
+  deleteTable,
   archDir,
   wrapId,
   inSpec):
+  '''
+  Reads a dir tree and adds rows to the database table "model".
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * func (str): Overall function.  One of the following:
+
+      * ``'createTableModel'``
+        Drop and create the model table.
+      * ``'createTableContrib'``
+        Drop and recreate the contrib table.
+      * ``'fillTable'``
+        Read a dir tree and add rows to the database table "model".
+
+  * deleteTable (boolean): If True and func is create\*,
+    delete the specified table before creating it.
+  * archDir (str): Input directory tree.
+  * wrapId (str):
+    The unique id of this upload, created
+    by wrapReceive.py from the uploaded file name.
+  * inSpec (str): Name of JSON file containing DB parameters.
+                  See description at :func:`main`.
+
+  **Returns**
+
+  * None
+  '''
 
   if bugLev >= 1:
     print 'fillDbVasp: func: %s' % (func,)
+    print 'fillDbVasp: deleteTable: %s' % (deleteTable,)
     print 'fillDbVasp: archDir: %s' % (archDir,)
     print 'fillDbVasp: wrapId: %s' % (wrapId,)
     print 'fillDbVasp: inSpec: %s' % (inSpec,)
@@ -187,9 +247,9 @@ def fillDbVasp(
     cursor.execute('set search_path to %s', (dbschema,))
 
     if func == 'createTableModel':
-      createTableModel( bugLev, conn, cursor, dbtablemodel)
+      createTableModel( bugLev, deleteTable, conn, cursor, dbtablemodel)
     elif func == 'createTableContrib':
-      createTableContrib( bugLev, conn, cursor, dbtablecontrib)
+      createTableContrib( bugLev, deleteTable, conn, cursor, dbtablecontrib)
     elif func == 'fillTable':
       fillTable( bugLev, archDir, conn, cursor, wrapId,
         dbtablemodel, dbtablecontrib)
@@ -204,20 +264,41 @@ def fillDbVasp(
 
 def createTableModel(
   bugLev,
+  deleteTable,
   conn,
   cursor,
   dbtablemodel):
+  '''
+  Creates the database table "model".
 
-  cursor.execute('drop table if exists %s' % (dbtablemodel,))
-  conn.commit()
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * deleteTable (boolean): If True, delete the table before creating it.
+  * conn (psycopg2.connection): Open DB connection
+  * cursor (psycopg2.cursor): Open DB cursor
+  * dbtablemodel (str): Database name of the "model" table.
+
+  **Returns**
+
+  * None
+  '''
+
+  if deleteTable:
+    cursor.execute('DROP TABLE IF EXISTS %s' % (dbtablemodel,))
+    conn.commit()
 
   cursor.execute('''
     CREATE TABLE %s (
       mident          serial,
       wrapid          text,
-      abspath         text,
-      relpath         text,
-      statmapjson     text,
+      abspath         text,   -- absolute path to dir
+      relpath         text,   -- relative path below topDir
+
+      -- Values derived from the directory path
+      -- by wrapUpload.py getIcsdMap.
+      -- Not stored in the database:
+      --   statMap: map of fileName -> statInfoMap for files in this dir.
 
       icsdNum         int,   -- ICSD number in CIF file: _database_code_ICSD
 
@@ -239,6 +320,8 @@ def createTableModel(
       excTrace        text,  -- exception trace from readVasp.py
                              -- If excMsg != None,
                              -- all following fields are None.
+
+      -- Values set by readVasp.py
 
       --- program, version, date etc ---
       runDate        timestamp,          -- 2013-03-11 10:07:01
@@ -295,11 +378,21 @@ def createTableModel(
       vbMax          double precision,     -- eV
       bandgap        double precision,     -- eV
 
-      --- columns filled by augmentDb.py ---
-      isminenergy    boolean,
-      chemsum        text,              -- 'H2 O'
-      chemform       text               -- ' H 2 O '
-                                        -- every token surrounded by spaces
+      -- Values set by augmentDb.py
+      formula        text,     -- 'H2 O'
+      chemtext       text,     -- ' H 2 O ', every token surrounded by spaces
+      minenergyid    int,      -- mident w min energyperatom for this formula
+      enthalpy       double precision,  -- FERE enthalpy of formation per atom
+
+      --- metadata ---
+      hashstring        text,     -- sha512 of our vasprun.xml
+      meta_parents      text[],   -- sha512 of parent vasprun.xml, or null
+      meta_firstName    text,     -- metadata: first name
+      meta_lastName     text,     -- metadata: last name
+      meta_publications text[],   -- metadata: publication DOI or placeholder
+      meta_standards    text[],   -- metadata: controlled vocab keywords
+      meta_keywords     text[],   -- metadata: uncontrolled vocab keywords
+      meta_notes        text      -- metadata: notes
     )
   ''' % (dbtablemodel,))
   conn.commit()
@@ -308,6 +401,13 @@ def createTableModel(
   ixName = '%s_mident_index' % (dbtablemodel,)
   cursor.execute('''
     CREATE INDEX %s ON %s (mident)
+  ''' % (ixName, dbtablemodel,))
+  conn.commit()
+  print 'fillDbVasp: index \"%s\" created' % (ixName,)
+
+  ixName = '%s_icsdnum_index' % (dbtablemodel,)
+  cursor.execute('''
+    CREATE INDEX %s ON %s (icsdnum)
   ''' % (ixName, dbtablemodel,))
   conn.commit()
   print 'fillDbVasp: index \"%s\" created' % (ixName,)
@@ -321,12 +421,29 @@ def createTableModel(
 
 def createTableContrib(
   bugLev,
+  deleteTable,
   conn,
   cursor,
   dbtablecontrib):
+  '''
+  Creates the database table "contrib".
 
-  cursor.execute('drop table if exists %s' % (dbtablecontrib,))
-  conn.commit()
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * deleteTable (boolean): If True, delete the table before creating it.
+  * conn (psycopg2.connection): Open DB connection
+  * cursor (psycopg2.cursor): Open DB cursor
+  * dbtablecontrib (str): Database name of the "contrib" table.
+
+  **Returns**
+
+  * None
+  '''
+
+  if deleteTable:
+    cursor.execute('DROP TABLE IF EXISTS %s' % (dbtablecontrib,))
+    conn.commit()
 
   cursor.execute('''
     CREATE TABLE %s (
@@ -334,28 +451,9 @@ def createTableContrib(
       curdate      timestamp,
       userid       text,
       hostname     text,
-      uploaddir    text,
-      reldirs      text[],
-      archpaths    text[],
-      fnd_incar    int,
-      tot_incar    int,
-      fnd_kpoints    int,
-      tot_kpoints    int,
-      fnd_poscar    int,
-      tot_poscar    int,
-      fnd_potcar    int,
-      tot_potcar    int,
-      fnd_outcar    int,
-      tot_outcar    int,
-      fnd_vasprun    int,
-      tot_vasprun    int,
-      meta_firstname   text,     -- metadata: author first name
-      meta_lastname    text,     -- metadata: author last name
-      meta_publication text,     -- metadata: publication DOI or placeholder
-      meta_standards   text[],   -- metadata: controlled vocab keywords
-      meta_keywords    text[],   -- metadata: uncontrolled vocab keywords
-      meta_notes       text,     -- metadata: notes
-      meta_omit        text[]    -- metadata: omit patterns
+      topDir       text,
+      numkeptdir   int,       -- == len( reldirs)
+      reldirs      text[]
     )
   ''' % (dbtablecontrib,))
   conn.commit()
@@ -376,6 +474,33 @@ def fillTable(
   wrapId,
   dbtablemodel,
   dbtablecontrib):
+  '''
+  Adds rows to the model table, and one row to the contrib table.
+
+  * Reads overMap from archdir/wrapId.json
+  * For each dir in overMap['relDirs']:
+
+      * Call fillRow to add one row to the model table.
+
+  * Add one row to the contrib table representing this wrapId.
+
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * archDir (str): Input directory tree.
+  * conn (psycopg2.connection): Open DB connection
+  * cursor (psycopg2.cursor): Open DB cursor
+  * wrapId (str):
+    The unique id of this upload, created
+    by wrapReceive.py from the uploaded file name.
+  * dbtablemodel (str): Database name of the "model" table.
+  * dbtablecontrib (str): Database name of the "contrib" table.
+
+  **Returns**
+
+  * None
+  '''
 
   if bugLev >= 1:
     print 'fillTable: archDir: %s' % (archDir,)
@@ -387,20 +512,37 @@ def fillTable(
   subNames = os.listdir( archDir)
   subNames.sort()
 
-  digestDir = os.path.join( archDir, wrapUpload.digestDirName)
-  jFile = os.path.join( digestDir, wrapUpload.overMapFile)
-  wrapUpload.checkFileFull( jFile)
-  with open( jFile) as fin:
+  overFile = os.path.join( archDir, wrapId) + '.json'
+  wrapUpload.checkFileFull( overFile)
+  with open( overFile) as fin:
     overMap = json.load( fin)
 
-  metaMap = overMap['metaMap']
   miscMap = overMap['miscMap']
+  countMap = overMap['countMap']
+  envMap = overMap['envMap']
+  statInfos = overMap['statInfos']
+  topDir = overMap['topDir']
+  numKeptDir = overMap['numKeptDir']         # == len( relDirs)
+  relDirs = overMap['relDirs']               # parallel array
+  dirMaps = overMap['dirMaps']               # parallel array
+  icsdMaps = overMap['icsdMaps']             # parallel array
+  relFiles = overMap['relFiles']
+  metadataForce = overMap['metadataForce']
 
   if bugLev >= 1:
-    printMap('fillTable: overMap', overMap, 30)
-    printMap('fillTable: metaMap', metaMap, 30)
-    printMap('fillTable: miscMap', miscMap, 30)
+    wrapUpload.printMap('fillTable: overMap', overMap, 100)
+    wrapUpload.printMap('fillTable: miscMap', miscMap, 100)
+    wrapUpload.printMap('fillTable: countMap', countMap, 100)
+    wrapUpload.printMap('fillTable: envMap', envMap, 100)
+    print 'fillTable: len( statInfos): %d' % (len( statInfos),)
+    print 'fillTable: topDir: %s' % (topDir,)
+    print 'fillTable: len( relDirs): %d' % (len( relDirs),)
+    print 'fillTable: len( dirMaps): %d' % (len( dirMaps),)
+    print 'fillTable: len( icsdMaps): %d' % (len( icsdMaps),)
+    print 'fillTable: len( relFiles): %d' % (len( relFiles),)
+    wrapUpload.printMap('fillTable: metadataForce', metadataForce, 100)
 
+  # xxx delete?
   # Avoid duplicate rows if reprocessing data
   cursor.execute(
     'delete from ' + dbtablecontrib + ' where wrapid = %s',
@@ -413,13 +555,19 @@ def fillTable(
   conn.commit()
 
   # Add rows to the model table.
-  fillTableSub(
-    bugLev,
-    archDir,
-    conn,
-    cursor,
-    wrapId,
-    dbtablemodel)
+  for ii in range( len( relDirs)):
+    fillRow(
+      bugLev,
+      metadataForce,
+      archDir,
+      topDir,
+      relDirs[ii],            # parallel array
+      dirMaps[ii],            # parallel array
+      icsdMaps[ii],           # parallel array
+      conn,
+      cursor,
+      wrapId,
+      dbtablemodel)
 
   # Add one row to the contrib table.
   # Coord with wrapUpload.py main.
@@ -433,60 +581,19 @@ def fillTable(
         curdate,
         userid,
         hostname,
-        uploaddir,
-        reldirs,
-        archpaths,
-        fnd_incar,
-        tot_incar,
-        fnd_kpoints,
-        tot_kpoints,
-        fnd_poscar,
-        tot_poscar,
-        fnd_potcar,
-        tot_potcar,
-        fnd_outcar,
-        tot_outcar,
-        fnd_vasprun,
-        tot_vasprun,
-        meta_firstname,    -- metadata: author first name
-        meta_lastname,     -- metadata: author last name
-        meta_publication,  -- metadata: publication DOI or placeholder
-        meta_standards,    -- metadata: controlled vocab keywords
-        meta_keywords,     -- metadata: uncontrolled vocab keywords
-        meta_notes,        -- metadata: notes
-        meta_omit)         -- metadata: omit patterns
-
-        values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        topDir,
+        numkeptdir,       -- == len( reldirs)
+        reldirs)
+        values (%s,%s,%s,%s,%s,%s,%s)
     ''',
     (
       wrapId,
-      overMap['curDate'],
-      overMap['userId'],
-      overMap['hostName'],
-      overMap['uploadDir'],
-      overMap['relDirs'],
-      overMap['archPaths'],
-
-      miscMap['fnd_INCAR'],
-      miscMap['tot_INCAR'],
-      miscMap['fnd_KPOINTS'],
-      miscMap['tot_KPOINTS'],
-      miscMap['fnd_POSCAR'],
-      miscMap['tot_POSCAR'],
-      miscMap['fnd_POTCAR'],
-      miscMap['tot_POTCAR'],
-      miscMap['fnd_OUTCAR'],
-      miscMap['tot_OUTCAR'],
-      miscMap['fnd_vasprun.xml'],
-      miscMap['tot_vasprun.xml'],
-
-      metaMap['firstName'],
-      metaMap['lastName'],
-      metaMap['publication'],
-      metaMap['standards'],
-      metaMap['keywords'],
-      metaMap['notes'],
-      metaMap['omit'],
+      miscMap['curDate'],
+      miscMap['userId'],
+      miscMap['hostName'],
+      topDir,
+      numKeptDir,
+      relDirs,
   ))
   
   conn.commit()
@@ -495,84 +602,131 @@ def fillTable(
 #====================================================================
 
 
-# Add rows to the model table.
 
-def fillTableSub(
+def fillRow(
   bugLev,
-  inDir,
+  metadataForce,
+  archDir,
+  topDir,
+  relDir,
+  dirMap,
+  icsdMap,
   conn,
   cursor,
   wrapId,
   dbtablemodel):
+  '''
+  Adds one row to the model table, corresponding to relDir.
 
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * metadataForce (map): If not None, force this to be the metadata
+    map for all subDirs.
+  * archDir (str): Input directory tree.
+  * topDir (str): original top dir during upload.
+  * relDir (str): sub directory under topDir (during wrapUpload.py) and
+    under archDir (during wrapReceive.py and fillDb.py).
+
+  * dirMap (map): map created by :mod:`wrapUpload` that contains:
+
+      * absPath    : absolute path
+      * relPath    : relative path
+      * statMap    : map of fname -> file statistics for files in absPath.
+
+  * icsdMap (map): map created by :mod:`wrapUpload` that contains:
+
+      * icsdNum    : icsdNum, derived from file path
+      * magType    : magType, derived from file path
+      * magNum     : magNum, derived from file path
+      * relaxType  : relaxType, derived from file path
+      * relaxNum   : relaxNum, derived from file path
+
+  * conn (psycopg2.connection): Open DB connection
+  * cursor (psycopg2.cursor): Open DB cursor
+  * wrapId (str):
+    The unique id of this upload, created
+    by wrapReceive.py from the uploaded file name.
+  * dbtablemodel (str): Database name of the "model" table.
+
+  **Returns**
+
+  * None
+  '''
+
+  subPath = os.path.join( archDir, wrapReceive.vdirName, relDir)
+  print 'fillRow: adding relDir: %s' % ( relDir,)
   if bugLev >= 1:
-    print 'fillTableSub: wrapId: %s' % (wrapId,)
-    print 'fillTableSub: inDir: %s' % (inDir,)
-
-  if not os.path.isdir( inDir):
-    throwerr('inDir is not a dir: "%s"' % (inDir,))
-
-  subNames = os.listdir( inDir)
-  subNames.sort()
-
-  if wrapUpload.smallMapFile in subNames:
-    fillDbRow( bugLev, inDir, conn, cursor, wrapId, dbtablemodel)
-
-  # Recursion on subdirs
-  for nm in subNames:
-    subPath = os.path.join( inDir, nm)
-    if os.path.isdir( subPath):
-      fillTableSub(
-        bugLev,
-        subPath,
-        conn,
-        cursor,
-        wrapId,
-        dbtablemodel)
-
-
-
-
-
-#xxx all print, all xxx
-#xxx del digest*
-#xxx make sure we can repeatedly upload one dir.
-
-
-#====================================================================
-
-
-
-def fillDbRow(
-  bugLev,
-  subPath,
-  conn,
-  cursor,
-  wrapId,
-  dbtablemodel):
-
-  if bugLev >= 1:
-    print 'fillDbRow: wrapId: %s' % (wrapId,)
-    print 'fillDbRow: subPath: %s' % (subPath,)
-
-  print 'fillDbRow: adding subPath: %s' % ( subPath,)
-
-  ourJsonPath = os.path.join( subPath, wrapUpload.smallMapFile)
-  if bugLev >= 5: print 'fillDbRow: ourJsonPath: %s' % (ourJsonPath,)
-
-  wrapUpload.checkFileFull( ourJsonPath)
-  with open( ourJsonPath) as fin:
-    smallMap = json.load( fin)
-
+    print 'fillRow: wrapId: %s' % (wrapId,)
+    print 'fillRow: subPath: %s' % (subPath,)
   if bugLev >= 5:
-    printMap('fillTableSub: smallMap', smallMap, 30)
+    wrapUpload.printMap('fillRow: dirMap', dirMap, 100)
+    wrapUpload.printMap('fillRow: icsdMap', icsdMap, 100)
 
+  # Check redDir and absPath
+  if dirMap['relPath'] != relDir:
+    throwerr('relPath mismatch.  old: "%s"  new: "%s"' \
+      % (dirMap['relPath'], relDir,))
+  absPath = os.path.join( topDir, relDir)
+  if dirMap['absPath'] != absPath:
+    throwerr('absPath mismatch.  old: "%s"  new: "%s"' \
+      % (dirMap['absPath'], absPath,))
+
+  if metadataForce == None:
+    mpath = os.path.join( subPath, wrapUpload.metadataName)
+    metaMap = wrapUpload.parseMetadata( mpath)
+  else:
+    metaMap = metadataForce
+  if bugLev >= 5:
+    wrapUpload.printMap('fillRow: metaMap', metaMap, 100)
+
+  vname = os.path.join( subPath, vasprunName)
+  hash = hashlib.sha512()
+  with open( vname) as fin:
+    while True:
+      stg = fin.read( 10000)
+      if stg == '': break
+      hash.update( stg)
+  hashString = hash.hexdigest()
+
+  # Check that our hashString is not in the database
+  cursor.execute( 'SELECT mident, relpath FROM ' + dbtablemodel
+    + ' WHERE hashString = %s', (hashString,))
+  msg = cursor.statusmessage
+  if msg != 'SELECT': throwerr('bad statusmessage')
+  rows = cursor.fetchall()
+  if len(rows) > 0:
+    # xxx find a way to recover.  Don't throwerr.
+    msg = 'Duplicate hashString.\n'
+    msg += '  hashString: %s\n'  % (hashString,)
+    for ii in range(len(rows)):
+      msg += '  old mident: %s\n'  % (rows[ii][0],)
+      msg += '  old relPath: %s\n' % (rows[ii][1],)
+      msg += '\n'
+    msg += '  new wrapId: %s\n' % (wrapId,)
+    msg += '  new relDir: %s\n' % (relDir,)
+    throwerr( msg)
+
+
+  # Check that parent hashString is in the database
+  if metaMap.has_key('parent'):
+    for parentHash in metaMap['parent']:
+      cursor.execute( 'SELECT mident, relpath FROM ' + dbtablemodel
+        + ' WHERE hashString = %s', (parentHash,))
+      msg = cursor.statusmessage
+      if msg != 'SELECT': throwerr('bad statusmessage')
+      rows = cursor.fetchall()
+      if len(rows) != 1:
+        msg = 'Parent hashString not found in DB.\n'
+        msg += '  wrapId: %s\n' % (wrapId,)
+        msg += '  relDir: %s\n' % (relDir,)
+        msg += '  our hashString: %s\n' % (hashString,)
+        msg += '  parent hashString: %s\n' % (parentHash,)
+        throwerr( msg)
+
+  # Read and parse vasprun.xml
   readType = 'xml'
   vaspObj = readVasp.parseDir( bugLev, readType, subPath, -1)  # print = -1
-  if bugLev >= 5:
-    keys = smallMap.keys()
-    keys.sort()
-    print 'fillDbRow: smallMap keys: %s' % (keys,)
 
   typeNums = getattr( vaspObj, 'typeNums', None)
   numAtom = None
@@ -583,19 +737,6 @@ def fillDbRow(
   if numAtom != None and energyNoEntrp != None:
     energyPerAtom = energyNoEntrp / numAtom
 
-  ## Avoid duplicate rows if reprocessing data
-  #cursor.execute(
-  #  'delete from ' + dbtablemodel
-  #    + ' where wrapid = %s and path = %s and icsdnum = %s'
-  #    + ' and magtype = %s and magnum = %s'
-  #    + ' and relaxType = %s and relaxNum = %s'
-  #    + ' and runDate = %s and iterTotalTime = %s'
-  #    + ' and systemName = %s',
-  #  (wrapid, path, icsdNum, magType, magNum,
-  #  relaxTtype, relaxNum, runDate, iterTotalTime, systemName,)
-  #)
-  #conn.commit()
-
   cursor.execute(
     '''
       insert into
@@ -605,17 +746,13 @@ def fillDbRow(
         wrapid,
         abspath,
         relpath,
-        statmapjson,
-
         icsdNum,
         magType,
         magNum,
         relaxType,
         relaxNum,
-
         excMsg,
         excTrace,
-
         runDate,
         iterTotalTime,
         systemName,
@@ -632,17 +769,14 @@ def fillDbRow(
         atomMasses_amu,
         atomPseudos,
         atomValences,
-
         initialBasisMat,
         initialRecipBasisMat,
         initialCartesianPosMat,
         initialDirectPosMat,
-
         finalBasisMat,
         finalRecipBasisMat,
         finalCartesianPosMat,
         finalDirectPosMat,
-
         finalVolumeVasp_ang3,
         density_g_cm3,
         finalForceMat_ev_ang,
@@ -654,24 +788,29 @@ def fillDbRow(
         efermi0,
         cbMin,
         vbMax,
-        bandgap)
-      values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+        bandgap,
+        hashstring,        -- sha512 of our vasprun.xml
+
+        meta_parents,      -- sha512 of parent vasprun.xml, or null
+        meta_firstName,    -- metadata: first name
+        meta_lastName,     -- metadata: last name
+        meta_publications, -- metadata: publication DOI or placeholder
+        meta_standards,    -- metadata: controlled vocab keywords
+        meta_keywords,     -- metadata: uncontrolled vocab keywords
+        meta_notes)        -- metadata: notes
+
+      values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
     ''',
     ( wrapId,
-      smallMap['absPath'],
-      smallMap['relPath'],
-      json.dumps( smallMap['statMap'],          # statMap in json format
-        sort_keys=True, indent=2, separators=(',', ': ')),
-
-      smallMap['icsdNum'],
-      smallMap['magType'],
-      smallMap['magNum'],
-      smallMap['relaxType'],
-      smallMap['relaxNum'],
-
+      absPath,
+      relDir,
+      icsdMap['icsdNum'],
+      icsdMap['magType'],
+      icsdMap['magNum'],
+      icsdMap['relaxType'],
+      icsdMap['relaxNum'],
       vaspObj.excMsg,
       vaspObj.excTrace,
-
       getattr( vaspObj, 'runDate', None),
       getattr( vaspObj, 'iterTotalTime', None),
       getattr( vaspObj, 'systemName', None),
@@ -688,17 +827,14 @@ def fillDbRow(
       getattr( vaspObj, 'atomMasses_amu', None),
       getattr( vaspObj, 'atomPseudos', None),
       getattr( vaspObj, 'atomValences', None),
-
       getattr( vaspObj, 'initialBasisMat', None),
       getattr( vaspObj, 'initialRecipBasisMat', None),
       getattr( vaspObj, 'initialCartesianPosMat', None),
       getattr( vaspObj, 'initialDirectPosMat', None),
-
       getattr( vaspObj, 'finalBasisMat', None),
       getattr( vaspObj, 'finalRecipBasisMat', None),
       getattr( vaspObj, 'finalCartesianPosMat', None),
       getattr( vaspObj, 'finalDirectPosMat', None),
-
       getattr( vaspObj, 'finalVolumeVasp_ang3', None),
       getattr( vaspObj, 'density_g_cm3', None),
       getattr( vaspObj, 'finalForceMat_ev_ang', None),
@@ -711,21 +847,18 @@ def fillDbRow(
       getattr( vaspObj, 'cbMin', None),
       getattr( vaspObj, 'vbMax', None),
       getattr( vaspObj, 'bandgap', None),
+      hashString,
+      metaMap.get('parents', None),
+      metaMap['firstName'],
+      metaMap['lastName'],
+      metaMap['publications'],
+      metaMap['standards'],
+      metaMap['keywords'],
+      metaMap['notes'],
   ))
   conn.commit()
 
-#====================================================================
 
-
-# Recursively format an array, so
-#   [[11.1, 22.2], [33.3, 44.4]] )
-# becomes the string:
-#   array[array[11.1,22.2],array[33.3,44.4]]
-
-def formatArray( vec):
-  msg = formatArraySub( vec)
-  # print 'formatted array with quotes:\n  %s' % (msg,)
-  return msg
 
 
 #====================================================================
@@ -733,12 +866,29 @@ def formatArray( vec):
 
 # xxx: special case for None? ... format as NULL?
 
-def formatArraySub( val):
+def formatArray( val):
+  '''
+  Formats a Python array into SQL format.
+
+  Recursively formats a Python array, so
+  the Python array `` [[11.1, 22.2], [33.3, 44.4]]``
+  is formatted into the string:
+  ``'array[array[11.1,22.2],array[33.3,44.4]]'``
+
+  **Parameters**:
+
+  * vec (float[] or float[][] or ...): Python array.  May be multidimensional.
+
+  **Returns**
+
+  * Formatted array as a str.
+  '''
+
   if isinstance( val, np.ndarray):
     msg = 'array['
     for ii in range(len(val)):
       if ii > 0: msg += ','
-      msg += formatArraySub( val[ii])       # recursion
+      msg += formatArray( val[ii])       # recursion
     msg += ']'
   elif isinstance( val, float) \
     or isinstance( val, np.float) \
@@ -765,21 +915,24 @@ def formatArraySub( val):
 
 #====================================================================
 
-def printMap( tag, vmap, maxLen):
-  print '\n%s' % (tag,)
-  keys = vmap.keys()
-  keys.sort()
-  for key in keys:
-    val = str( vmap[key])
-    if len(val) > maxLen: val = val[:maxLen] + '...'
-    print '    [%s]: %s' % (key, val,)
-
-#====================================================================
-
-
-
 
 def throwerr( msg):
+  '''
+  Prints an error message and raises Exception.
+
+  **Parameters**:
+
+  * msg (str): Error message.
+
+  **Returns**
+
+  * (Never returns)
+  
+  **Raises**
+
+  * Exception
+  '''
+
   print msg
   print >> sys.stderr, msg
   raise Exception( msg)

@@ -9,6 +9,10 @@ import augmentDb
 import wrapUpload
 
 
+#====================================================================
+
+
+vdirName = 'vdir'
 
 #====================================================================
 
@@ -23,9 +27,6 @@ def badparms( msg):
   print '  -archDir    <string>   Dir used for work and archiving.'
   print '  -logFile    <string>   Log file name.'
   print '  -inSpec     <string>   inSpecJsonFile'
-  print '  -archDir    <string>   dir for archiving'
-  print '  -inSpec     <string>   inSpecJsonFile'
-  print '  -inSpec     <string>   inSpecJsonFile'
   sys.exit(1)
 
 
@@ -35,7 +36,8 @@ def badparms( msg):
 
 def main():
   '''
-  This is the receiver for model data uploaded by wrapUpload.sh.
+  This is the receiver for data uploaded by wrapUpload.py.
+
   It updates the model and contrib tables.
   The function is determined by the **-func** parameter; see below.
 
@@ -57,21 +59,23 @@ def main():
   **Values for the -func Parameter:**
 
   **readIncoming**
-    Monitor the inDir for new additions.
-    When one is found, move it to archDir, untar it,
-    and run fillDbVasp.py on the digest.pkl file
-    to insert the results into the model table.
-    Also insert a row into the contrib table for this wrapId.
+    Every few seconds list the files in inDir.
+    For each file name matching ``wrapId.flag``, call function
+    :func:`gatherArchive` to process the three files:
+    ``wrapId.json``, ``wrapId.tgz``, and ``wrapId.flag``.
+    Since program :mod:`wrapUpload` always writes
+    the flag file last, the other two should already be present.
 
   **redoArch**
-    Re-process all the subDirs found in archDir.
+    Re-process all the subDirs found in archDir by calling
+    function :func:`processTree` for each subDir.
     This is useful when someone changes the database tables,
     for example by adding an new column.
     Then one can use the following to recreate the tables
-    with the new column.
+    with the new column. ::
 
-      fillDbTable.py -func createTableModel
-      fillDbTable.py -func createTableContrib
+      fillDbVasp.py -func createTableModel -deleteTable true
+      fillDbVasp.py -func createTableContrib -deleteTable true
       wrapReceive.py -func redoArch
 
   **inSpec File Parameters:**
@@ -101,7 +105,6 @@ def main():
       "dbtablemodel"   : "model",
       "dbtablecontrib" : "contrib"
     }
-
   '''
 
   bugLev = None
@@ -148,14 +151,8 @@ def main():
   flog = open( logPath, 'a')
   # xxx use flog
 
-
   # Quit if there's a duplicate process already running.
   checkDupProcs()
-
-
-  # Coord with uui in wrapUpload.sh
-  uuiPattern = r'^(arch\.(\d{4}\.\d{2}\.\d{2})\.tm\.(\d{2}\.\d{2}\.\d{2}\.\d{6})\.user\.(.*)\.host\.(.*)\.digest)'
-  flagPattern = uuiPattern + r'\.flag'
 
   if func == 'readIncoming':
     while True:
@@ -165,19 +162,15 @@ def main():
       fnames = os.listdir( inDirPath)
       fnames.sort()
       for fname in fnames:
-        mat = re.match( flagPattern, fname)
-        if mat != None:
-          wrapId = mat.group(1)
-          dateStg = mat.group(2)
-          timeStg = mat.group(3)
-          userid = mat.group(4)
-          hostname = mat.group(5)
+        # If matches, returns (wrapId, adate, userid, hostname).
+        wrapId = wrapUpload.parseUui( fname)
+        if wrapId != None and fname.endswith('.flag'):
           if bugLev >= 1: wrapUpload.logit('main: wrapId: %s' % (wrapId,))
+
           excArgs = None
           try: 
             gatherArchive(
-              bugLev, inDirPath, archDirPath,
-              wrapId, dateStg, timeStg, userid, hostname, inSpec)
+              bugLev, inDirPath, archDirPath, wrapId, inSpec)
           except Exception, exc:
             excArgs = exc.args
             wrapUpload.logit('caught: %s' % (excArgs,))
@@ -189,27 +182,22 @@ def main():
             wrapUpload.logit('error for %s: %s' % (wrapId, excArgs,))
             throwerr( str(excArgs))
 
-      time.sleep(10)
+      time.sleep(5)                     # poll interval
 
   # Re-process the subDirs under archDir.
   elif func == 'redoArch':
     fnames = os.listdir( archDirPath)
     fnames.sort()
     for fname in fnames:
-      mat = re.match( uuiPattern, fname)
-      if mat != None:
-        wrapId = mat.group(1)
-        dateStg = mat.group(2)
-        timeStg = mat.group(3)
-        userid = mat.group(4)
-        hostname = mat.group(5)
+      # If matches, returns (wrapId, adate, userid, hostname).
+      wrapId = wrapUpload.parseUui( fname)
+      if wrapId != None:
         if bugLev >= 1: wrapUpload.logit('main: wrapId: %s' % (wrapId,))
         subDir = os.path.join( archDirPath, wrapId)
+
         excArgs = None
         try: 
-          processTree(
-            bugLev, subDir, wrapId, dateStg, timeStg,
-            userid, hostname, inSpec)
+          processTree( bugLev, subDir, wrapId, inSpec)
         except Exception, exc:
           excArgs = exc.args
           wrapUpload.logit('caught: %s' % (excArgs,))
@@ -229,8 +217,27 @@ def main():
 #====================================================================
 
 def gatherArchive(
-  bugLev, inDirPath, archDirPath,
-  wrapId, dateStg, timeStg, userid, hostname, inSpec):
+  bugLev, inDirPath, archDirPath, wrapId, inSpec):
+  '''
+  Moves inDirPath/wrapId.* to archDir and adds the info to the database.
+
+  Moves inDirPath/wrapId{.json,.tgz,.flag} to the new dir archDir/wrapId.
+  Untars the .tgz file.
+  Then calls function :func:`processTree` to add the info to the database.
+
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * inDirPath (str): Absolute path of the command line parm ``inDir``.
+  * archDirPath (str): Absolute path of the command line parm ``archDir``.
+  * wrapId (str): The wrapId extracted from the current filename.
+  * inSpec (str): Name of JSON file containing DB parameters.
+                  See description at :func:`main`.
+
+  **Returns**
+
+  * None
+  '''
 
   if bugLev >= 1:
     wrapUpload.logit('gatherArchive: inDirPath: %s' % (inDirPath,))
@@ -238,30 +245,39 @@ def gatherArchive(
     wrapUpload.logit('gatherArchive: wrapId: %s' % (wrapId,))
 
   # Check paths
+  jsonPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.json'))
   archPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.tgz'))
   flagPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.flag'))
+  wrapUpload.checkFileFull( jsonPathOld)
   wrapUpload.checkFileFull( archPathOld)
   wrapUpload.checkFile( flagPathOld)
 
-  # Move x.tgz and x.flag to subDir==archDir/wrapId
+  # Move (actually copy, then remove the old one)
+  # x.json, x.tgz, x.flag to subDir==archDir/wrapId
   subDir = os.path.join( archDirPath, wrapId)
   os.mkdir( subDir)
+  shutil.copy2( jsonPathOld, subDir)
   shutil.copy2( archPathOld, subDir)
   shutil.copy2( flagPathOld, subDir)
+  os.remove( jsonPathOld)
   os.remove( archPathOld)
   os.remove( flagPathOld)
 
+  jsonPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.json'))
   archPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.tgz'))
   flagPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.flag'))
+
+  vdir = os.path.join( subDir, vdirName)
+  os.mkdir( vdir)
 
   # Untar wrapId.tgz in subDir==archDir/wrapId
 
   args = ['/bin/tar', '-xzf', archPathNew]
-  wrapUpload.runSubprocess( bugLev, subDir, args)
+  wrapUpload.runSubprocess( bugLev, vdir, args, False)  # print stdout = False
 
-  processTree(
-    bugLev, subDir, wrapId, dateStg, timeStg,
-    userid, hostname, inSpec)
+  # xxx Here we could delete archPathNew.
+
+  processTree( bugLev, subDir, wrapId, inSpec)
 
 
 
@@ -269,40 +285,61 @@ def gatherArchive(
 
 
 
-def processTree(
-  bugLev, subDir, wrapId, dateStg, timeStg,
-  userid, hostname, inSpec):
+def processTree( bugLev, subDir, wrapId, inSpec):
+  '''
+  Calls :mod:`fillDbVasp` to add info to the database,
+  and :mod:`augmentDb` to fill additional DB columns.
 
-  # Get adate
-  adate = datetime.datetime.strptime(
-    dateStg + ' ' + timeStg, '%Y.%m.%d %H.%M.%S.%f')
+  **Parameters**:
+
+  * bugLev (int): Debug level.  Normally 0.
+  * wrapId (str): The wrapId extracted from the current filename.
+  * subDir (str): archDirPath/wrapId
+  * inSpec (str): Name of JSON file containing DB parameters.
+                  See description at :func:`main`.
+
+  **Returns**
+
+  * None
+  '''
+
   if bugLev >= 1:
     wrapUpload.logit('processTree: wrapId: %s' % (wrapId,))
     wrapUpload.logit('processTree: subDir: %s' % (subDir,))
-    wrapUpload.logit('processTree: adate: %s' % (adate,))
-    wrapUpload.logit('processTree: userid: "%s"' % (userid,))
-    wrapUpload.logit('processTree: hostname: "%s"' % (hostname,))
 
   fillDbVasp.fillDbVasp(
     bugLev,
     'fillTable',     # func
+    False,           # deleteTable
     subDir,
     wrapId,
     inSpec)
 
   # Fill in additional columns in the model table
-  augmentDb.augmentDb( bugLev, wrapId, inSpec)
+  augmentDb.augmentDb( bugLev, inSpec)
 
 
 #====================================================================
 
 
-# Test if a process with the same program name as ours
-# is already running.  If so, quit.
-#
-# Typical cmdline is: ['python', 'wrapReceive.py', ...]
-
 def checkDupProcs():
+  '''
+  Tests if a process with the same program name as ours
+  is already running, and if so, quits.
+
+  **Parameters**:
+
+  * None
+
+  **Returns**
+
+  * None
+
+  **Raises**
+
+  * Exception (via throwerr) if another process has the same name.
+  '''
+
   mypid = os.getpid()
   myproc = psutil.Process( mypid)
   mypgm = None
@@ -331,6 +368,22 @@ def checkDupProcs():
 #====================================================================
 
 def throwerr(msg):
+  '''
+  Prints an error message and raises Exception.
+
+  **Parameters**:
+
+  * msg (str): Error message.
+
+  **Returns**
+
+  * (Never returns)
+  
+  **Raises**
+
+  * Exception
+  '''
+
   print 'Error: %s' % (msg,)
   raise Exception( msg)
 
