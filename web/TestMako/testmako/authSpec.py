@@ -11,8 +11,8 @@ def authCheckUseridPassword( userid, pswd):
   }
   res = False
   if pswdMap.has_key( userid) and pswdMap[userid] == pswd: res = True
-  print ('    ***** authSpec.AuthCheckUseridPassword: userid: %s  res: %s') \
-    % (userid, res,)
+  #print ('    ***** authSpec.AuthCheckUseridPassword: userid: %s  res: %s') \
+  #  % (userid, res,)
   return res
 
 
@@ -25,7 +25,7 @@ def authGetUserGroups( userid, request):
     'vladan'  : ['grpAlpha'],
   }
   grps = groupMap.get( userid, [])
-  print '    ***** authSpec.authGetuserGroups: userid: %s  grps: %s' \
-    % (userid, grps,)
+  #print '    ***** authSpec.authGetuserGroups: userid: %s  grps: %s' \
+  #  % (userid, grps,)
   return grps
 

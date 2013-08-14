@@ -1,3 +1,9 @@
 
 *.pyc
-docs/build/
+cidvasp/doc/build/
+cidvasp/unusedDistributeMetadata.py
+old
+virtmako
+sessions
+TestMako.egg-info
+*.bk*

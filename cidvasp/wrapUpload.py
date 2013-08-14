@@ -128,6 +128,7 @@ def main():
   bugLev = 0
   func = 'upload'
   metadataSpec = None
+  requireIcsd = None
   keepList = None
   keepPatterns = None
   omitPatterns = None
@@ -142,6 +143,7 @@ def main():
     if   key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
     elif key == '-metadataSpec': metadataSpec = val
+    elif key == '-requireIcsd': requireIcsd = parseBoolean( val)
     elif key == '-keepList': keepList = val
     elif key == '-keepPatterns': keepPatterns = val.split(',')
     elif key == '-omitPatterns': omitPatterns = val.split(',')
@@ -151,6 +153,7 @@ def main():
 
   # func is optional
   # metadataSpec is optional
+  if requireIcsd == None: badparms('missing parameter: -requireIcsd')
   # keepList is optional
   # keepPatterns is optional
   # omitPatterns is optional
@@ -170,7 +173,8 @@ def main():
   print 'wrapUpload: workDir: %s' % (workDir,)
 
   if func == 'upload':
-    doUpload( bugLev, metadataSpec, keepList, keepPatterns, omitPatterns,
+    doUpload( bugLev, metadataSpec, requireIcsd,
+      keepList, keepPatterns, omitPatterns,
       topDir, workDir)
   elif func == 'testMetadata':
     metadata = parseMetadata( metadataSpec)
@@ -182,9 +186,14 @@ def main():
 
 
 def doUpload(
-  bugLev, metadataSpec,
-  keepList, keepPatterns, omitPatterns,
-  topDir, workDir):
+  bugLev,
+  metadataSpec,
+  requireIcsd,                # require icsd info in absTopDir string
+  keepList,
+  keepPatterns,
+  omitPatterns,
+  topDir,
+  workDir):
   '''
   Locates model runs, checks and extracts dir contents,
   and uses ``tar`` and ``scp`` to send the data to the server running
@@ -208,6 +217,9 @@ def doUpload(
     is used instead.
     Default: None, meaning each archived
     dir must contain a metadata file.
+
+  * requireIcsd (boolean): if True, the absTopDir string must
+    contain ICSD info that :func:`getIcsdMap` can extract.
 
   * keepList (str[]):
     List of the absolute paths
@@ -317,6 +329,7 @@ def doUpload(
       keepAbsPaths,
       absTopDir,
       metadataForce,              # metadata to force on all dirs
+      requireIcsd,                # require icsd info in absTopDir string
       miscMap,                    # appends to map
       relDirs,                    # parallel: appends to list
       dirMaps,                    # parallel: appends to list
@@ -334,6 +347,7 @@ def doUpload(
       absTopDir,
       '',                         # relative path so far
       metadataForce,              # metadata to force on all dirs
+      requireIcsd,                # require icsd info in absTopDir string
       miscMap,                    # appends to map
       relDirs,                    # parallel: appends to list
       dirMaps,                    # parallel: appends to list
@@ -450,6 +464,7 @@ def searchDirs(
   absTopDir,
   relPath,                    # relative path so far
   metadataForce,              # metadata to force on all dirs
+  requireIcsd,                # require icsd info in absTopDir string
   miscMap,                    # appends to map
   relDirs,                    # parallel: appends to list
   dirMaps,                    # parallel: appends to list
@@ -485,6 +500,9 @@ def searchDirs(
     in the archived dirs are ignored.
     Default: None, meaning each archived
     dir must contain a metadata file.
+
+  * requireIcsd (boolean): if True, the absTopDir string must
+    contain ICSD info that :func:`getIcsdMap` can extract.
 
   * miscMap (map): we call :func:`processDir`, which may increment
     miscMap['numWarn'].
@@ -552,7 +570,7 @@ def searchDirs(
 
   if keepIt and (not omitIt) and hasMetadata:
     processDir( bugLev, absTopDir, relPath,
-      metadataForce, miscMap,
+      metadataForce, requireIcsd, miscMap,
       relDirs, dirMaps, icsdMaps, relFiles)
 
   # Recurse to subdirs
@@ -569,6 +587,7 @@ def searchDirs(
           absTopDir,
           subPath,                    # relPath: relative path so far
           metadataForce,              # metadata to force on all dirs
+          requireIcsd,                # require icsd info in absTopDir string
           miscMap,                    # appends to map
           relDirs,                    # parallel: appends to list
           dirMaps,                    # parallel: appends to list
@@ -587,6 +606,7 @@ def iterateDirs(
   keepAbsPaths,
   absTopDir,
   metadataForce,              # metadata to force on all dirs
+  requireIcsd,                # require icsd info in absTopDir string
   miscMap,                    # appends to map
   relDirs,                    # parallel: appends to list
   dirMaps,                    # parallel: appends to list
@@ -611,6 +631,9 @@ def iterateDirs(
     in the archived dirs are ignored.
     Default: None, meaning each archived
     dir must contain a metadata file.
+
+  * requireIcsd (boolean): if True, the absTopDir string must
+    contain ICSD info that :func:`getIcsdMap` can extract.
 
   * miscMap (map): we call :func:`processDir`, which may increment
     miscMap['numWarn'].
@@ -643,7 +666,7 @@ def iterateDirs(
       print 'iterateDirs: relPath: %s' % (relPath,)
 
     processDir( bugLev, absTopDir, relPath,
-      metadataForce, miscMap,
+      metadataForce, requireIcsd, miscMap,
       relDirs, dirMaps, icsdMaps, relFiles)
 
 
@@ -656,6 +679,7 @@ def processDir(
   absTopDir,
   relPath,                    # relative path so far
   metadataForce,              # metadata to force on all dirs
+  requireIcsd,                # require icsd info in absTopDir string
   miscMap,                    # appends to map
   relDirs,                    # parallel: appends to list
   dirMaps,                    # parallel: appends to list
@@ -679,6 +703,9 @@ def processDir(
     in the archived dirs are ignored.
     Default: None, meaning each archived
     dir must contain a metadata file.
+
+  * requireIcsd (boolean): if True, the absTopDir string must
+    contain ICSD info that :func:`getIcsdMap` can extract.
 
   * miscMap (map): we may increment miscMap['numWarn'].
 
@@ -775,9 +802,9 @@ def processDir(
     try:
       icsdMap = getIcsdMap( bugLev, absTopDir, relPath)
     except Exception, exc:
-      if useIcsd: throwerr('icsd info not found.  traceback:\n%s' \
+      if requireIcsd: throwerr('icsd info not found.  traceback:\n%s' \
         % traceback.format_exc( limit=None),)
-      icsdMap = None
+      icsdMap = {}
     icsdMaps.append( icsdMap)
 
   else: throwerr('invalid numMatch')
@@ -1446,6 +1473,14 @@ def formatMatrix( mat):
     msg += '\n'
   return msg
 
+
+#====================================================================
+
+def parseBoolean( stg):
+  if stg.lower() in ['false', 'no']: res = False
+  elif stg.lower() in ['true', 'yes']: res = True
+  else: throwerr('invalid boolean: "%s"' % (stg,))
+  return res
 
 #====================================================================
 

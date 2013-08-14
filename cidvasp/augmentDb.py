@@ -226,7 +226,7 @@ def addChemforms( bugLev, curCols, db_rows):
   Appends two elements to each row:
 
   formula:
-    chemical forumula, determined from typenames and typenums,
+    chemical formula, determined from typenames and typenums,
     and factoring by the greatest common divison.
     Elements are in alphabetic order.
     For example, ``'H2 O'``.
@@ -353,19 +353,24 @@ def addMinenergy( bugLev, curCols, db_rows):
     energy = row[icolEnergy]
     symgroupnum = row[icolSymgroupnum]
 
-    formulaSymnum = '%s,%d' % (formula, symgroupnum,)
+    formulaSymnum = '%s,%s' % (formula, symgroupnum,) # symgroupnum may be None
     pair = minMap.get( formulaSymnum, None)
     if pair == None or energy < pair[0]:
       minMap[formulaSymnum] = [energy, mident]
 
   # Add new column minenergyid to each row
   for row in db_rows:
+    mident = row[icolMident]
     formula = row[icolFormula]
     symgroupnum = row[icolSymgroupnum]
-    formulaSymnum = '%s,%d' % (formula, symgroupnum,)
+    formulaSymnum = '%s,%s' % (formula, symgroupnum,) # symgroupnum may be None
 
-    pair = minMap[formulaSymnum]
-    row.append( pair[1])      # mident having the min energy for this formula
+    pair = minMap[formulaSymnum]      # [minEnergy, minId]
+    minId = pair[1]
+    if bugLev >= 1:
+      print 'addMinenergy: mident: %d  formula: %s  symgrp: %s  minId: %d' \
+        % (mident, formula, symgroupnum, minId,)
+    row.append( minId)      # mident having the min energy for this formula
 
   newCols = ['minenergyid']
   if bugLev >= 1:
@@ -403,16 +408,23 @@ def addEnthalpy( bugLev, curCols, db_rows):
       print 'addEnthalpy beg: len of first row: %d' % (len(db_rows[0]),)
       print 'addEnthalpy beg: first row: %s' % (db_rows[0],)
 
+  icolMident = getIcol( curCols, 'model.mident')
+  icolFormula = getIcol( curCols, 'model.formula')
   icolEnergy = getIcol( curCols, 'model.energyperatom')
   icolTypenames = getIcol( curCols, 'model.typenames')
   icolTypenums = getIcol( curCols, 'model.typenums')
 
   # Add new column enthalpy to each row
   for row in db_rows:
+    mident = row[icolMident]
+    formula = row[icolFormula]
     typenames = row[icolTypenames]
     typenums = row[icolTypenums]
     energy = row[icolEnergy]
     enthalpy = calcEnthalpy( typenames, typenums, energy)  # may be None
+    if bugLev >= 1:
+      print 'addEnthalpy: mident: %d  formula: %s  energy: %g  enthalpy: %s' \
+        % (mident, formula, energy, enthalpy,)
     row.append( enthalpy)
 
   newCols = ['enthalpy']
@@ -550,7 +562,7 @@ def dbQuery( bugLev, conn, cursor, dbtablemodel, dbtableicsd, queryCols):
   db_rows = None
 
   nmStg = ', '.join( queryCols)
-  sqlMsg = 'SELECT %s FROM %s, %s WHERE model.icsdnum = icsd.icsdnum ORDER BY mident' \
+  sqlMsg = 'SELECT %s FROM %s LEFT OUTER JOIN %s ON (model.icsdnum = icsd.icsdnum) ORDER BY mident' \
     % (nmStg, dbtablemodel, dbtableicsd)
 
   cursor.execute( sqlMsg)

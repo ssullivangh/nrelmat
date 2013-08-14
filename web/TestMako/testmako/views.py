@@ -1,5 +1,5 @@
 
-import json, os, re, uuid, StringIO
+import json, os, re, uuid, StringIO, sys, traceback
 import psycopg2
 from pyramid.view import view_config
 from pyramid.view import forbidden_view_config
@@ -187,12 +187,14 @@ def getModelColDescs():
       'bandgap'),
 
     #--- augmented items ---
-    ColumnDesc('minenergyid', 'minEnergyID', '%d',
-      'id having min energy for this formula'),
     ColumnDesc('formula', 'formula', '%s',
       'chemical formula'),
     ColumnDesc('chemtext', 'chemText', '%s',
       'chemical formula with spaces'),
+    ColumnDesc('minenergyid', 'minEnergyID', '%d',
+      'id having min energy for this formula'),
+    ColumnDesc('enthalpy', 'enthalpy', '%.2f',
+      'final enthalpy, eV/atom'),
 
     #--- metadata ---
     ColumnDesc('hashstring', 'hash', '%s',
@@ -547,7 +549,7 @@ def vwQueryStd( request):
         print 'vwQueryStd: qoffset: %d' % (qoffset,)
         print 'vwQueryStd: qlimit: %d' % (qlimit,)
 
-      whereClause = 'model.icsdnum = icsd.icsdnum'
+      whereClause = 'TRUE'
 
       if showMinEnergyOnly:
         whereClause += ' AND model.mident = model.minenergyid'
@@ -618,10 +620,13 @@ def vwQueryStd( request):
 
       query0 = 'set search_path to %s' % (settings['db_schema'],)
 
-      query1 = 'SELECT count(*) FROM model, icsd WHERE %s' % (whereClause,)
+      fromClause = \
+        'model LEFT OUTER JOIN icsd ON (model.icsdnum = icsd.icsdnum)'
 
-      query2 = 'SELECT %s FROM model, icsd WHERE %s ORDER BY %s LIMIT %s OFFSET %s' \
-        % (nameStg, whereClause, sortStg, qlimit, qoffset,)
+      query1 = 'SELECT count(*) FROM %s WHERE %s' % (fromClause, whereClause,)
+
+      query2 = 'SELECT %s FROM %s WHERE %s ORDER BY %s LIMIT %s OFFSET %s' \
+        % (nameStg, fromClause, whereClause, sortStg, qlimit, qoffset,)
 
       queries = [query0, query1, query2]
       dbRes = dbQuery( buglev, settings, queries)
@@ -645,6 +650,8 @@ def vwQueryStd( request):
           descMap, icolMap, showFields, colVecs, db_rows)
         print '################################### errMsg B: ', errMsg
     except Exception, exc:
+      print '############################ caught: ', exc
+      traceback.print_exc( None, sys.stdout)
       errMsg = str( exc)
 
   else:
@@ -1170,7 +1177,10 @@ def formatTableHtml(
     cdesc = descMap[ nm]
     showCols[jj] = cdesc.tag
     for ii in range( nshowRow):
-      showRows[ii][jj] = cdesc.fmt % (db_rows[ii][icol],)
+      val = db_rows[ii][icol]
+      if val == None: stg = 'null'
+      else: stg = cdesc.fmt % val
+      showRows[ii][jj] = stg
 
   fout = StringIO.StringIO()
   print >> fout, '<table style="border:2px solid gray; margin-left:0;'
@@ -1437,7 +1447,8 @@ def getIcolMap( descMap, queryFields):
   icolMap = {}
   for icol in range(len(queryFields)):
     nm = queryFields[icol]
-    if not descMap.has_key(nm): throwerr('unknown col name: "%s"' % (nm,))
+    if not descMap.has_key(nm):
+      throwerr('views.py: getIcolMap: unknown col name: "%s"' % (nm,))
     if icolMap.has_key(nm): throwerr('duplicate col name: "%s"' % (nm,))
     icolMap[nm] = icol
 
