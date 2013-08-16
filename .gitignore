@@ -1,6 +1,5 @@
 
 *.pyc
-nrelmat/doc/build/
 nrelmat/unusedDistributeMetadata.py
 old
 virtmako
