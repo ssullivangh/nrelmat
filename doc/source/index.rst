@@ -11,6 +11,8 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+   Database overview: Overview of the database system. <dbOverview>
+   Web overview: Overview of the web server system. <webOverview>
    augmentDb.py: Add additional info to the model table. <augmentDb>
    fillDbVasp.py: Read files created by wrapUpload and add rows to the model table.  <fillDbVasp>
    readVasp.py: Read and parse an OUTCAR or vasprun.xml file <readVasp>

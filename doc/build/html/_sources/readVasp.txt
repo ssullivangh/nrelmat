@@ -1,5 +1,5 @@
 
-fillDbVasp.py
+readVasp.py
 =============
 
 

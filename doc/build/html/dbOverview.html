@@ -1,0 +1,267 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>NREL MatDB Database Overview &mdash; nrelmat 1.0.0 documentation</title>
+    
+    <link rel="stylesheet" href="_static/default.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '1.0.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <link rel="top" title="nrelmat 1.0.0 documentation" href="index.html" />
+    <link rel="next" title="NREL MatDB Web Overview" href="webOverview.html" />
+    <link rel="prev" title="Welcome to nrelmat’s documentation!" href="index.html" /> 
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="webOverview.html" title="NREL MatDB Web Overview"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to nrelmat’s documentation!"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">nrelmat 1.0.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="nrel-matdb-database-overview">
+<h1>NREL MatDB Database Overview<a class="headerlink" href="#nrel-matdb-database-overview" title="Permalink to this headline">¶</a></h1>
+<p>The NREL MatDB stores and retrieves the results
+of molecular modeling programs such as <a class="reference external" href="https://www.vasp.at/">VASP</a>.</p>
+<div class="section" id="id1">
+<h2>VASP<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>Our initial implementation is for VASP output,
+so let&#8217;s focus on VASP.</p>
+<p>VASP requires the following input files, although
+it can use many more:</p>
+<blockquote>
+<div><ul class="simple">
+<li>INCAR: Main list of parameters.</li>
+<li>KPOINTS: Specify the k-point grid.</li>
+<li>POSCAR: Specify atom positions.</li>
+<li>POTCAR: Specify atomic pseudopotentials.</li>
+</ul>
+</div></blockquote>
+<p>VASP produces many output files, but the only two we retain
+are:</p>
+<blockquote>
+<div><ul class="simple">
+<li>OUTCAR: General log and results in human-readable format.</li>
+<li>vasprun.xml: All results in XML format.</li>
+</ul>
+</div></blockquote>
+<p>During a study a researcher may produce terabytes of VASP-related
+information: for each of many structures, multiple VASP runs
+perform different relaxations.</p>
+<p>Typically a group of related directories will be uploaded
+at once.  They are identified by a wrapId.</p>
+</div>
+<div class="section" id="wrapid">
+<h2>wrapId<a class="headerlink" href="#wrapid" title="Permalink to this headline">¶</a></h2>
+<p>A wrapId uniquely identifies a single invocation of wrapUpload.py
+to upload a group of directories.
+A typical wrapId is:</p>
+<div class="highlight-python"><pre>@2013.08.13@12.58.22.735311@someUser@home.someUser.redmesa.old.td.testlada.2013.04.06.Fe.O@</pre>
+</div>
+<p>The wrapId broken into fields separated by &#8220;&#64;&#8221;:</p>
+<blockquote>
+<div><ul class="simple">
+<li>Date, yyyy.mm.dd</li>
+<li>Time, hh.mm.ss.uuuuuu  where uuuuuu is microseconds padded to 6 characters</li>
+<li>User name.</li>
+<li>Top directory specified to wrapUpload, with &#8220;/&#8221; replaced by &#8221;.&#8221;.</li>
+</ul>
+</div></blockquote>
+</div>
+<div class="section" id="wrapupload-py">
+<h2>wrapUpload.py<a class="headerlink" href="#wrapupload-py" title="Permalink to this headline">¶</a></h2>
+<p>A researcher runs the Python program wrapUpload.py to
+upload results to the server.
+The program takes as input either ...</p>
+<blockquote>
+<div><ul class="simple">
+<li>A directory tree, in which case command line parameters
+control which subdirectories are accepted for uploading.</li>
+<li>A list of specific directories to upload.</li>
+</ul>
+</div></blockquote>
+<p>The wrapUpload program creates a unique identifier
+for this upload, called the <strong>wrapId</strong>.</p>
+<p>Then wrapUpload makes a list of all files to be
+uploaded.  These must be in directories that passed the
+filters above and is restricted to the files:</p>
+<blockquote>
+<div><ul class="simple">
+<li>metadata: user-specified metadata like name and publication DOI.</li>
+<li>INCAR: Main list of parameters.</li>
+<li>KPOINTS: Specify the k-point grid.</li>
+<li>POSCAR: Specify atom positions.</li>
+<li>POTCAR: Specify atomic pseudopotentials.</li>
+<li>OUTCAR: General log and results in human-readable format.</li>
+<li>vasprun.xml: All results in XML format.</li>
+</ul>
+</div></blockquote>
+<p>Then wrapUpload makes a single <tt class="docutils literal"><span class="pre">tar.gz</span></tt> file
+of all the files, and uses <tt class="docutils literal"><span class="pre">scp</span></tt> to upload three files:</p>
+<blockquote>
+<div><ul class="simple">
+<li>wrapId.json: General statistics and information</li>
+<li>wrapId.tgz: Compendium of all files to be archived.</li>
+<li>wrapId.flag: Zero-length flag.</li>
+</ul>
+</div></blockquote>
+<p>The wrapId.flag file gets uploaded last.  The server doesn&#8217;t
+start processing the files until receiving the flag file,
+thereby preventing the server from starting
+to process partly-received data.</p>
+<div class="section" id="wrapreceive-py">
+<h3>wrapReceive.py<a class="headerlink" href="#wrapreceive-py" title="Permalink to this headline">¶</a></h3>
+<p>The server runs a single Python program: wrapReceive.py.
+Every few seconds wrapReceive checks for files in the
+directory /data/incoming.  If it finds a file there having
+the format <tt class="docutils literal"><span class="pre">wrapId.flag</span></tt>, ...</p>
+<blockquote>
+<div><ul class="simple">
+<li>It checks that the three files are present:<ul>
+<li>wrapId.json: General statistics and information</li>
+<li>wrapId.tgz: Compendium of all files to be archived.</li>
+<li>wrapId.flag: Zero-length flag.</li>
+</ul>
+</li>
+<li>It creates a directory /data/arch/wrapId, and moves
+moves the three files from /data/incoming to /data/arch/wrapId.</li>
+<li>Within directory /data/arch/wrapId ...</li>
+<li>It untars wrapId.tgz to subdirectory vdir</li>
+<li>It calls fillDbVasp.py, passing the directory /data/arch/wrapId.</li>
+</ul>
+</div></blockquote>
+</div>
+<div class="section" id="filldbvasp-py">
+<h3>fillDbVasp.py<a class="headerlink" href="#filldbvasp-py" title="Permalink to this headline">¶</a></h3>
+<p>The fillDbVasp program has three possible main functions:</p>
+<blockquote>
+<div><ul class="simple">
+<li>Delete and recreate the <tt class="docutils literal"><span class="pre">model</span></tt> database table.
+This function is rarely used.</li>
+<li>Delete and recreate the <tt class="docutils literal"><span class="pre">contrib</span></tt> database table.
+This function is rarely used.</li>
+<li>Analyze the contents of a directory corresponding to
+a single wrapId, and ingest the data into the database.
+This is the function invoked by wrapReceive.py.</li>
+</ul>
+</div></blockquote>
+<p>Continuing with the third choice,</p>
+<p>For each relative subdir specified in the wrapId.json file,
+fillDbVasp finds the reconstructed directory and calls
+fillRow to handle the directory.
+The fillRow method calls readVasp.py to read the vasprun.xml file.
+The readVasp.py program returns a map (Python dictionary)
+and adds a single row to the model table.</p>
+<p>Finally, fillDbVasp adds a single row to the contrib
+table with information about the wrapId covering the entire
+set of directories.</p>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+  <h3><a href="index.html">Table Of Contents</a></h3>
+  <ul>
+<li><a class="reference internal" href="#">NREL MatDB Database Overview</a><ul>
+<li><a class="reference internal" href="#id1">VASP</a></li>
+<li><a class="reference internal" href="#wrapid">wrapId</a></li>
+<li><a class="reference internal" href="#wrapupload-py">wrapUpload.py</a><ul>
+<li><a class="reference internal" href="#wrapreceive-py">wrapReceive.py</a></li>
+<li><a class="reference internal" href="#filldbvasp-py">fillDbVasp.py</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+  <h4>Previous topic</h4>
+  <p class="topless"><a href="index.html"
+                        title="previous chapter">Welcome to nrelmat&#8217;s documentation!</a></p>
+  <h4>Next topic</h4>
+  <p class="topless"><a href="webOverview.html"
+                        title="next chapter">NREL MatDB Web Overview</a></p>
+  <h3>This Page</h3>
+  <ul class="this-page-menu">
+    <li><a href="_sources/dbOverview.txt"
+           rel="nofollow">Show Source</a></li>
+  </ul>
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             >index</a></li>
+        <li class="right" >
+          <a href="py-modindex.html" title="Python Module Index"
+             >modules</a> |</li>
+        <li class="right" >
+          <a href="webOverview.html" title="NREL MatDB Web Overview"
+             >next</a> |</li>
+        <li class="right" >
+          <a href="index.html" title="Welcome to nrelmat’s documentation!"
+             >previous</a> |</li>
+        <li><a href="index.html">nrelmat 1.0.0 documentation</a> &raquo;</li> 
+      </ul>
+    </div>
+    <div class="footer">
+        &copy; Copyright 2013, S. Sullivan.
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 1.2b1.
+    </div>
+  </body>
+</html>
