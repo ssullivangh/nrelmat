@@ -167,20 +167,20 @@ def main():
         if wrapId != None and fname.endswith('.flag'):
           if bugLev >= 1: wrapUpload.logit('main: wrapId: %s' % (wrapId,))
 
-          excArgs = None
+          excStg = None
           try: 
             gatherArchive(
               bugLev, inDirPath, archDirPath, wrapId, inSpec)
           except Exception, exc:
-            excArgs = exc.args
-            wrapUpload.logit('caught: %s' % (excArgs,))
+            excStg = repr( exc)
+            wrapUpload.logit('caught: %s' % (excStg,))
             wrapUpload.logit(traceback.format_exc( limit=None))
 
-          if excArgs == None:
+          if excStg == None:
             wrapUpload.logit('archived %s' % (wrapId,))
           else:
-            wrapUpload.logit('error for %s: %s' % (wrapId, excArgs,))
-            throwerr( str(excArgs))
+            wrapUpload.logit('error for %s: %s' % (wrapId, excStg,))
+            # throwerr( excStg)
 
       time.sleep(5)                     # poll interval
 
@@ -195,19 +195,19 @@ def main():
         if bugLev >= 1: wrapUpload.logit('main: wrapId: %s' % (wrapId,))
         subDir = os.path.join( archDirPath, wrapId)
 
-        excArgs = None
+        excStg = None
         try: 
           processTree( bugLev, subDir, wrapId, inSpec)
         except Exception, exc:
-          excArgs = exc.args
-          wrapUpload.logit('caught: %s' % (excArgs,))
+          excStg = repr( exc)
+          wrapUpload.logit('caught: %s' % (excStgs,))
           wrapUpload.logit(traceback.format_exc( limit=None))
 
-        if excArgs == None:
+        if excStgs == None:
           wrapUpload.logit('archived %s' % (wrapId,))
         else:
-          wrapUpload.logit('error for %s: %s' % (wrapId, excArgs,))
-          throwerr( str(excArgs))
+          wrapUpload.logit('error for %s: %s' % (wrapId, excStgs,))
+          throwerr( excStg)
 
   else: badparms('invalid func')
 

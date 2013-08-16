@@ -4,9 +4,9 @@ fillDbVasp.py
 
 
 
-.. automodule:: cidvasp.statsa
+.. automodule:: nrelmat.statsa
 
-.. currentmodule:: cidvasp.statsa
+.. currentmodule:: nrelmat.statsa
 .. autofunction:: main
 .. autofunction:: statsMain
 .. autofunction:: statsA

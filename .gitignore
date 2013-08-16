@@ -1,7 +1,7 @@
 
 *.pyc
-cidvasp/doc/build/
-cidvasp/unusedDistributeMetadata.py
+nrelmat/doc/build/
+nrelmat/unusedDistributeMetadata.py
 old
 virtmako
 sessions

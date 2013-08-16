@@ -802,8 +802,11 @@ def processDir(
     try:
       icsdMap = getIcsdMap( bugLev, absTopDir, relPath)
     except Exception, exc:
-      if requireIcsd: throwerr('icsd info not found.  traceback:\n%s' \
-        % traceback.format_exc( limit=None),)
+      print 'processDir: no icsd info found for absTopDir: %s' \
+        % (absTopDir,)
+      if requireIcsd: throwerr(
+        'icsd info not found.  absTopDir: %s  traceback:\n%s' \
+        % (absTopDir, traceback.format_exc( limit=None),))
       icsdMap = {}
     icsdMaps.append( icsdMap)
 

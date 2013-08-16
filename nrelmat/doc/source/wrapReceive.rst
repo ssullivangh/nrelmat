@@ -2,9 +2,9 @@
 wrapReceive.py
 ==============
 
-.. automodule:: cidvasp.wrapReceive
+.. automodule:: nrelmat.wrapReceive
 
-.. currentmodule:: cidvasp.wrapReceive
+.. currentmodule:: nrelmat.wrapReceive
 .. autofunction:: main
 .. autofunction:: gatherArchive
 .. autofunction:: processTree

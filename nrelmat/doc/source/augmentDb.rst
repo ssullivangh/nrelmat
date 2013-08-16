@@ -4,9 +4,9 @@ augmentDb.py
 
 
 
-.. automodule:: cidvasp.augmentDb
+.. automodule:: nrelmat.augmentDb
 
-.. currentmodule:: cidvasp.augmentDb
+.. currentmodule:: nrelmat.augmentDb
 .. autofunction:: main
 .. autofunction:: augmentDb
 .. autofunction:: getIcol

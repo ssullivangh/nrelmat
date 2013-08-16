@@ -4,9 +4,9 @@ fillDbVasp.py
 
 
 
-.. automodule:: cidvasp.fillDbVasp
+.. automodule:: nrelmat.fillDbVasp
 
-.. currentmodule:: cidvasp.fillDbVasp
+.. currentmodule:: nrelmat.fillDbVasp
 .. autofunction:: main
 .. autofunction:: fillDbVasp
 .. autofunction:: createTableModel

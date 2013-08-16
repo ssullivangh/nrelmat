@@ -254,6 +254,7 @@ def fillDbVasp(
       fillTable( bugLev, archDir, conn, cursor, wrapId,
         dbtablemodel, dbtablecontrib)
     else: throwerr('unknown func: "%s"' % (func,))
+
   finally:
     if cursor != None: cursor.close()
     if conn != None: conn.close()

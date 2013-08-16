@@ -3,9 +3,9 @@
 wrapUpload.py
 ==============
 
-.. automodule:: cidvasp.wrapUpload
+.. automodule:: nrelmat.wrapUpload
 
-.. currentmodule:: cidvasp.wrapUpload
+.. currentmodule:: nrelmat.wrapUpload
 .. autofunction:: main
 .. autofunction:: doUpload
 .. autofunction:: searchDirs

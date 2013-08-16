@@ -4,9 +4,9 @@ fillDbVasp.py
 
 
 
-.. automodule:: cidvasp.readVasp
+.. automodule:: nrelmat.readVasp
 
-.. currentmodule:: cidvasp.readVasp
+.. currentmodule:: nrelmat.readVasp
 .. autoclass:: ResClass
 .. autofunction:: main
 .. autofunction:: parseDir
