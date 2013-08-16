@@ -1,9 +1,9 @@
-.. cidlada documentation master file, created by
+.. nrelmat documentation master file, created by
    sphinx-quickstart on Fri May 17 13:45:57 2013.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to cidlada's documentation!
+Welcome to nrelmat's documentation!
 ===================================
 
 Contents:
