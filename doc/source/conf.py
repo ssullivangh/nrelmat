@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# cidlada documentation build configuration file, created by
+# nrelmat documentation build configuration file, created by
 # sphinx-quickstart on Fri May 17 13:45:57 2013.
 #
 # This file is execfile()d with the current directory set to its containing dir.
@@ -16,7 +16,7 @@ import sys, os
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
-sys.path.insert( 0, os.path.abspath('../../..'))
+sys.path.insert( 0, os.path.abspath('../..'))
 
 print '\nconf.py sys.path: %s\n' % (sys.path,)
 
@@ -42,7 +42,7 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'cidlada'
+project = u'nrelmat'
 copyright = u'2013, S. Sullivan'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -169,7 +169,7 @@ html_static_path = ['_static']
 #html_file_suffix = None
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'cidladadoc'
+htmlhelp_basename = 'nrelmatdoc'
 
 
 # -- Options for LaTeX output --------------------------------------------------
@@ -188,7 +188,7 @@ latex_elements = {
 # Grouping the document tree into LaTeX files. List of tuples
 # (source start file, target name, title, author, documentclass [howto/manual]).
 latex_documents = [
-  ('index', 'cidlada.tex', u'cidlada Documentation',
+  ('index', 'nrelmat.tex', u'nrelmat Documentation',
    u'S. Sullivan', 'manual'),
 ]
 
@@ -218,7 +218,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    ('index', 'cidlada', u'cidlada Documentation',
+    ('index', 'nrelmat', u'nrelmat Documentation',
      [u'S. Sullivan'], 1)
 ]
 
@@ -232,8 +232,8 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-  ('index', 'cidlada', u'cidlada Documentation',
-   u'S. Sullivan', 'cidlada', 'One line description of project.',
+  ('index', 'nrelmat', u'nrelmat Documentation',
+   u'S. Sullivan', 'nrelmat', 'One line description of project.',
    'Miscellaneous'),
 ]
 
@@ -253,7 +253,7 @@ texinfo_documents = [
 # -- Options for Epub output ---------------------------------------------------
 
 # Bibliographic Dublin Core info.
-epub_title = u'cidlada'
+epub_title = u'nrelmat'
 epub_author = u'S. Sullivan'
 epub_publisher = u'S. Sullivan'
 epub_copyright = u'2013, S. Sullivan'
