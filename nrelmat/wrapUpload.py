@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with NREL MatDB.  If not, see <http://www.gnu.org/licenses/>.
 
-import datetime, json, math, os, pwd, re
+import datetime, json, math, os, pexpect, pwd, re
 import shutil, socket, stat, subprocess, sys, time, traceback
 
 
@@ -85,6 +85,8 @@ def badparms( msg):
   print '  -topDir     <string>    Top of dir tree to upload.'
   print ''
   print '  -workDir    <string>    Work dir'
+  print ''
+  print '  -serverInfo <string>    JSON file containing info about the server'
   sys.exit(1)
 
 
@@ -136,6 +138,20 @@ def main():
   **-topDir**         string       Top of dir tree to upload.
         
   **-workDir**        string       Work dir
+
+  **-serverInfo**     string       JSON file containing info about the server.
+                                   The following keys must be defined:
+
+                                     =============   =========================
+                                     Key             Value
+                                     =============   =========================
+                                     hostname        host where wrapReceive.py
+                                                     is running
+                                     userid          account for wrapReceive
+                                     password        password for wrapReceive
+                                     dir             incoming dir for
+                                                     wrapReceive
+                                     =============   =========================
   =================   =========    ===========================================
   '''
 
@@ -149,6 +165,7 @@ def main():
   omitPatterns = None
   topDir = None
   workDir = None
+  serverInfo = None
 
   if len(sys.argv) % 2 != 1:
     badparms('Parms must be key/value pairs')
@@ -164,6 +181,7 @@ def main():
     elif key == '-omitPatterns': omitPatterns = val.split(',')
     elif key == '-topDir': topDir = val
     elif key == '-workDir': workDir = val
+    elif key == '-serverInfo': serverInfo = val
     else: badparms('unknown key: "%s"' % (key,))
 
   # func is optional
@@ -176,6 +194,7 @@ def main():
     badparms('with keepList, may not spec keepPatterns or omitPatterns')
   if topDir == None: badparms('missing parameter: -topDir')
   if workDir == None: badparms('missing parameter: -workDir')
+  if serverInfo == None: badparms('missing parameter: -serverInfo')
   absTopDir = os.path.abspath( topDir)
 
   print 'wrapUpload: func: %s' % (func,)
@@ -186,14 +205,17 @@ def main():
   print 'wrapUpload: topDir: %s' % (topDir,)
   print 'wrapUpload: absTopDir: %s' % (absTopDir,)
   print 'wrapUpload: workDir: %s' % (workDir,)
+  print 'wrapUpload: serverInfo: %s' % (serverInfo,)
 
   if func == 'upload':
     doUpload( bugLev, metadataSpec, requireIcsd,
       keepList, keepPatterns, omitPatterns,
-      topDir, workDir)
+      topDir, workDir, serverInfo)
+
   elif func == 'testMetadata':
     metadata = parseMetadata( metadataSpec)
     printMap( 'metadata', metadata, 10000)
+
   else: badparms('unknown func: %s' % (func,))
 
 
@@ -208,7 +230,8 @@ def doUpload(
   keepPatterns,
   omitPatterns,
   topDir,
-  workDir):
+  workDir,
+  serverInfo):
   '''
   Locates model runs, checks and extracts dir contents,
   and uses ``tar`` and ``scp`` to send the data to the server running
@@ -258,15 +281,23 @@ def doUpload(
     to be omitted.  If specified,
     ``keepList`` must not be specified.
         
-  * topDir (str):     Top of dir tree to upload.
+  * topDir (str):       Top of dir tree to upload.
         
-  * workDir (str):   Work dir
+  * workDir (str):      Work dir
+
+  * serverInfo (str):   JSON file containing info about the server
 
   **Returns**
 
   * None
 
   '''
+
+  with open( serverInfo) as fin:
+    serverMap = json.load( fin)
+  for key in ['hostname', 'userid', 'password', 'dir']:
+    if not serverMap.has_key( key):
+      throwerr('serverInfo is missing key: %s' % (key,))
 
   absTopDir = os.path.abspath( topDir)
   metadataForce = None
@@ -429,7 +460,6 @@ def doUpload(
   overFile = fBase + '.json'
   tarFile = fBase + '.tgz' 
   flagFile = fBase + '.flag' 
-  idFile = fBase + '.id' 
 
   # Write JSON to overFile
   with open( overFile, 'w') as fout:
@@ -445,26 +475,26 @@ def doUpload(
     pass   # just create the file
 
   # Use scp to upload overFile, tarFile, flagFile.
-  try:                             # Make sure idFile gets deleted
-    with open( idFile, 'w') as fout:
-      fout.write( rsa_id)
-    os.chmod( idFile, stat.S_IRUSR + stat.S_IWUSR)    # r, w for user only
 
-    args = ['chmod', '660', tarFile, flagFile]
-    runSubprocess( bugLev, os.getcwd(), args, False)  # showStdout = False
+  args = ['chmod', '660', tarFile, flagFile]
+  runSubprocess( bugLev, os.getcwd(), args, False)  # showStdout = False
 
-    logit('wrapUpload: beginning scp (this could take several minutes)')
-    args = ['/usr/bin/scp', '-v', '-B', '-p', '-i', idFile,
-      '-o', 'StrictHostKeyChecking=no',
-      overFile,
-      tarFile,
-      flagFile,     # flagFile must be last for wrapReceive.py
-      'scpuser@cid-dev.hpc.nrel.gov:/data/incoming']
-    runSubprocess( bugLev, os.getcwd(), args, False)  # showStdout = False
+  logit('wrapUpload: beginning scp (this could take several minutes)')
 
-  finally:
-    if os.path.exists( idFile): os.remove( idFile)
+  cmdLine = '/usr/bin/scp -v -p %s %s %s %s@%s:%s' \
+    % (overFile,
+    tarFile,
+    flagFile,             # flagFile must be last for wrapReceive.py
+    serverMap['userid'],
+    serverMap['hostname'],
+    serverMap['dir'])
+  if bugLev >= 1:
+    print 'wrapUpload: scp cmdLine: %s' % (cmdLine)
 
+  proc = pexpect.spawn( cmdLine)
+  proc.expect(' password: ')
+  proc.sendline( serverMap['password'])
+  proc.expect( pexpect.EOF)
 
   logit('wrapUpload: Completed upload of %d directories.' % (numKeptDir,))
 
@@ -1201,37 +1231,6 @@ def parseMetadata( fpath):
 
 #====================================================================
 
-
-rsa_id = '''-----BEGIN RSA PRIVATE KEY-----
-MIIEoQIBAAKCAQEAxm4ocbBMCbsF1YTCRXrLy/oUjrdi6aHD8L4/3k1CfFs6SkzS
-7qFYmsDgov5Ukv3kJcd8W8sqgyb5K1bOcgMukJYEGyo6JgL/Aeupzv0Wv/FWfJvT
-r1MnLVfVsvewdWgNLO9xiLU2zzIZr8bA+SMQKpe1kbKHv+CDsePGs6QYQ2dRQEuO
-dFPKy4l4oW9XREvRVTiAikp6mBn1nd9K7Q/k82hEIq/Jq1ON9MHHgQiXvDVc8ivE
-ce0JRdW9vyH7hEHYjv363vt9FRw0/hSl5QTyKQXRVP+1WfmyOkIZggAXC7ODElao
-KI9i9o2YMhDy08cNfKR6Z3bb965O38Vh2hoLhwIBIwKCAQEAr8CneqN2jEaQI4Q3
-ClbRw0s2x4x8LgROdiTZe8DF29vF6gmHoCiBraOFIqa/7+gweTuoqRMIZYjrUkWS
-R7ms5nY+JrBfY37/HvVNQk3g8yY2qOHKHvHg3wSnVV8KAZaslYOfEq8h6rdYlF+U
-+evbHmkdKUZa+mfFGecAczmR1UtSTfAsDx9SCbIivqDkmfICsAFn7idY0fi+ei7O
-6bVulfocqYiYNz+X5eQfZBtCo4Finl9YPDxIY6GfT/xkt11HiGHcZ3LmlGpXPHdH
-G44w0g0FuYn4IHGiH00EOpZVBMTVOugMm+Ukhb5l9VXwWRK+DCQyPAIXgHFaf5fQ
-aEf1OwKBgQDi2WNbF2pQ2v+YGvBPI8z3cPeCtBtxOuMMYBrxP4G6dMmwyFPn/zdf
-izze0atHMxJBYJH9lPE8m3RWBIKMjJyBRbiPairt8H4uCfuFhlbBAxxC3MpuM3hD
-xtAgt8AWJTB0FF1FnVxoRT1bUPUcGR8cuaVMiVp49+TakGbUtwmlyQKBgQDf7eFL
-8P/rxI81KyQ3k7fvoarCTW33qfTH3RvjrfLfMCEYJ1ZOlwXuRO60ujZHXOvdxgTW
-2wpRpT+S0+3T9xK8M2uTpS3M4CX3Cqs7cR4rk5jKEhVgjkMzR9j0A/le2N6iYKDQ
-LcTqO1g9YMMRsO2eUjEmsyJIdwdo+R6AzlwOzwKBgBNxuA8fQ6CHzMPlDUicqysm
-8KTNm/PDOAhgAk8xVEMulPHlSQVBwururXIvOpETAZCTP7amXdH+sjNCNxNcgnF7
-ATDdNuEx3u4A2wtx6i3NEQ0LnFKWsol3cOzcjM6yuwKiqOi1t3am2V+ZOZSxsjWp
-gzJyLFOC9lvgfde36uJTAoGAUyx4QMc6fCRvtKmfvN8YbvLnp0FUuxM9qVIgTUCc
-CcFrYL4nXwTk8hmafaRAC+CvYQBoMovfQuWbRSolItgc5tFFNtbzwSAOGe4FFhQS
-hTbSWa7x/0rIgMLqLr+lxCSqdtNu7jzivWZ/3EiC9/FCUL9xV4RdMNvA7HnJgEyl
-2Z0CgYAfy53byUeqdGUT17EaXu+e8Fvp5JglIMIHshGvmSHiTB8cK6wMmp/W7BQ4
-l6gWE8+SIcGK7jik3L38Mqy41ifhwQ5y1zDAkP0QOiY1i1W9xEWXDtMDBbFFwl83
-DfCsjZdxC+DOz13qAEMd4+sDfapc+v0nSGvUvAiyJT6v6XH2jg==
------END RSA PRIVATE KEY-----
-'''
-
-#====================================================================
 
 def checkFileFull( fname):
   '''
