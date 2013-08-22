@@ -1,0 +1,6 @@
+<map id="nrelmat" name="nrelmat">
+<area shape="rect" id="node1" href="wrapUpload.py" title="&lt;TABLE&gt;" alt="" coords="5,5,349,203"/>
+<area shape="rect" id="node2" href="gv.archive.svg" title="Archive\nServer" alt="" coords="477,79,557,129"/>
+<area shape="rect" id="node3" href="gv.database.svg" title="Database" alt="" coords="608,41,696,89"/>
+<area shape="rect" id="node4" href="gv.web.svg" title="Web\nServer" alt="" coords="747,79,819,129"/>
+</map>
