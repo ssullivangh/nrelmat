@@ -463,13 +463,13 @@ def createTableContrib(
 
   cursor.execute('''
     CREATE TABLE %s (
-      wrapid       text,
-      curdate      timestamp,
-      userid       text,
-      hostname     text,
-      topDir       text,
-      numkeptdir   int,       -- == len( reldirs)
-      reldirs      text[]
+      wrapid       text,         -- wrapId for this upload
+      curdate      timestamp,    -- date, time of this wrapId
+      userid       text,         -- user id doing the upload
+      hostname     text,         -- hostname of the upload
+      topDir       text,         -- top level dir of the upload
+      numkeptdir   int,          -- num of subdirs uploaded
+      reldirs      text[]        -- list of relative subdirs
     )
   ''' % (dbtablecontrib,))
   conn.commit()

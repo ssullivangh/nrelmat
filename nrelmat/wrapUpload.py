@@ -61,6 +61,9 @@ def badparms( msg):
   print ''
   print '  -metadataSpec <string>  Metadata file to be forced on all.'
   print ''
+  print '  -requireIcsd  <boolean> no/yes: do we require that the path'
+  print '                          names of files contain ICSD info.'
+  print ''
   print '  -keepList   <string>    File containing the absolute paths'
   print '                          of the dirs to be uploaded.'
   print '                          Still topDir must be specified,'
@@ -114,6 +117,10 @@ def main():
                                    Default: None, meaning each archived
                                    dir must contain a metadata file.
 
+  **-requireIcsd**    boolean      no/yes: do we require that the path
+                                   names of files contain ICSD info.
+                                   See notes below.
+
   **-keepList**       string       File containing the absolute paths
                                    of the dirs to be uploaded.
                                    Still ``topDir`` must be specified,
@@ -153,6 +160,14 @@ def main():
                                                      wrapReceive
                                      =============   =========================
   =================   =========    ===========================================
+
+
+  If requireIcsd is true, :func:`getIcsdMap` must be able
+  to extract ICSD info from the file names.  File names must be like: ::
+
+    .../icsd_083665/icsd_083665.cif/ls-anti-ferro-7/relax_cellshape/1
+             ^^^^^^                 ^^^^^^^^      ^ ^^^^^^^^^^^^^^^ ^
+            icsdNum                 magType  magNum relaxType       relaxNum
   '''
 
 
