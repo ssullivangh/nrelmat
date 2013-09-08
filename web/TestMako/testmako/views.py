@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with NREL MatDB.  If not, see <http://www.gnu.org/licenses/>.
 
-import json, os, re, uuid, StringIO, sys, traceback
+import json, os, re, StringIO, sys, tarfile, traceback
 import psycopg2
 from pyramid.view import view_config
 from pyramid.view import forbidden_view_config
@@ -670,8 +670,8 @@ def vwQueryStd( request):
       errMsg = str( exc)
 
   else:
-    qrequiresStg = 'Te Zn'
-    qset = 'exact'
+    qrequiresStg = 'Sn Zn'
+    qset = 'superset'
     qforbidsStg = 'H'
     qexpr = '0 < bandgap and bandgap < 1.5'
     showMinEnergyOnly = True
@@ -919,11 +919,10 @@ def vwDetail(request):
     pair = dbMap[nm]   # Get pair (cdesc, value)
     db_pairs.append( (pair[0].desc, pair[1]) )
 
-
   return dict(
     errMsg        = errMsg,
     db_pairs      = db_pairs,
-    midentval     = dbMap['mident'][1],
+    midentval     = dbMap['model.mident'][1],
     authedSecure  = security.authenticated_userid( request),
     authedSession = request.session.has_key('authedSession'),
     navList       = getNavList( request),
@@ -933,14 +932,14 @@ def vwDetail(request):
 
 #====================================================================
 
-# Download
+# DownloadSql
 
-@view_config(route_name='rtDownload', permission='permEdit')
+@view_config(route_name='rtDownloadSql', permission='permEdit')
 
-def vwDownload(request):
+def vwDownloadSql(request):
   settings = request.registry.settings
   buglev = int( settings['buglev'])
-  if buglev >= 5: print 'vwDownload: auth_userid: %s' \
+  if buglev >= 5: print 'vwDownloadSql: auth_userid: %s' \
       % (security.authenticated_userid( request),)
 
   errMsg = ''
@@ -983,6 +982,80 @@ def vwDownload(request):
     )
 
 
+#====================================================================
+
+# DownloadFlat
+
+@view_config(route_name='rtDownloadFlat', permission='permEdit')
+
+def vwDownloadFlat(request):
+  settings = request.registry.settings
+  buglev = int( settings['buglev'])
+  if buglev >= 5: print 'vwDownloadFlat: auth_userid: %s' \
+      % (security.authenticated_userid( request),)
+
+  errMsg = ''
+  dlmap = request.GET.dict_of_lists()
+  if not dlmap.has_key('format'):
+    errMsg += 'invalid request<br>\n'
+  format = dlmap['format'][0]
+
+  # Get map: dbname -> pair (cdesc, value)
+  (subErrMsg, dbMap) = getDbDetail( buglev, request, settings)
+  errMsg += subErrMsg
+
+  archRoot = settings['archive_root']
+
+  content = ''
+  if errMsg == '':
+    if format == 'tar.gz':
+      dirPath = os.path.join(
+        archRoot,
+        dbMap['model.wrapid'][1],
+        'vdir',
+        dbMap['model.relpath'][1])
+      names = os.listdir( dirPath)
+      names.sort()
+      keeps = []
+      for name in names:
+        path = os.path.join( dirPath, name)
+        if os.path.isfile( path):
+          keeps.append( name)
+
+      svCwd = os.getcwd()
+      try: 
+        os.chdir( dirPath)
+        fout = StringIO.StringIO()          # tar archive
+        tar = tarfile.open( mode='w:gz', fileobj=fout)
+        for keep in keeps:
+          tar.add( keep)
+        tar.close()
+        content = fout.getvalue()
+        fout.close()
+      finally:
+        os.chdir( svCwd)
+
+    else: errMsg += 'invalid format: %s<br>\n' % (format,)
+
+  if errMsg != '':
+    # xxx we need an error template
+    return pyramid.response.Response(
+      body = '<h2>Error: %s</h2>' % (errMsg,),
+      content_type = 'text/html',
+    )
+
+  else:
+    response = pyramid.response.Response(
+      body = content,
+      content_type = 'application/x-gzip',
+    )
+    response.headerlist.append(
+      ('Content-Disposition',
+       'attachment; filename="nrelMatDb_%08d.tar.gz"' \
+         % (dbMap['model.mident'][1],)))
+    return response
+
+
 
 #====================================================================
 
@@ -1000,9 +1073,9 @@ def vwVisualize(request):
   # Get map: dbname -> pair (cdesc, value)
   (errMsg, dbMap) = getDbDetail( buglev, request, settings)
 
-  basisMat = dbMap['finalbasismat'][1]
-  posMat = dbMap['finaldirectposmat'][1]
-  anames = dbMap['atomnames'][1]
+  basisMat = dbMap['model.finalbasismat'][1]
+  posMat = dbMap['model.finaldirectposmat'][1]
+  anames = dbMap['model.atomnames'][1]
   elementMap = xyzToSmol.getElementMap()
 
   atoms = []
@@ -1024,14 +1097,14 @@ def vwVisualize(request):
 
   coordType = 'direct'
 
-  description = dbMap['formula'][1]
+  description = dbMap['model.formula'][1]
   smolString = xyzToSmol.formatSmol( buglev, description, elementMap,
     coordType, posScale, basisMat, atoms, bonds)
 
   return dict(
     errMsg        = errMsg,
-    midentval     = dbMap['mident'][1],
-    formula       = dbMap['formula'][1],
+    midentval     = dbMap['model.mident'][1],
+    formula       = dbMap['model.formula'][1],
     smolString    = smolString,
     authedSecure  = security.authenticated_userid( request),
     authedSession = request.session.has_key('authedSession'),

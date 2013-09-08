@@ -14,11 +14,16 @@
 % if len(errMsg) == 0:
   <div id="body">
   <a href="visualize?midentspec=${midentval}"> Visualize </a>
+
   &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  Download as:
-    <a href="download?format=python&midentspec=${midentval}"> Python </a>
+  Download statistics as:
+    <a href="downloadSql?format=python&midentspec=${midentval}"> Python </a>
 	&nbsp;&nbsp; or &nbsp;&nbsp;
-    <a href="download?format=json&midentspec=${midentval}"> JSON </a>
+    <a href="downloadSql?format=json&midentspec=${midentval}"> JSON </a>
+
+  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  Download original files as:
+    <a href="downloadFlat?format=tar.gz&midentspec=${midentval}"> tar.gz </a>
 
   <p>
   <table style="border:2px solid #00ff00;

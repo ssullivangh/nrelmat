@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with NREL MatDB.  If not, see <http://www.gnu.org/licenses/>.
 
-import datetime, hashlib, json, os, re, sys
+import datetime, hashlib, json, os, re, sys, traceback
 import numpy as np
 import psycopg2
 
@@ -149,7 +149,7 @@ def main():
     names = os.listdir( archDir)
     names.sort()
     for nm in names:
-      if nm.endswith('.flag'):
+      if nm.endswith('.zzflag'):
         # If matches, returns (wrapId, adate, userid, hostname).
         wrapIdUse = wrapUpload.parseUui( nm)
         if wrapIdUse != None and wrapId == 'first': break
@@ -572,18 +572,25 @@ def fillTable(
 
   # Add rows to the model table.
   for ii in range( len( relDirs)):
-    fillRow(
-      bugLev,
-      metadataForce,
-      archDir,
-      topDir,
-      relDirs[ii],            # parallel array
-      dirMaps[ii],            # parallel array
-      icsdMaps[ii],           # parallel array
-      conn,
-      cursor,
-      wrapId,
-      dbtablemodel)
+    try:
+      fillRow(
+        bugLev,
+        metadataForce,
+        archDir,
+        topDir,
+        relDirs[ii],            # parallel array
+        dirMaps[ii],            # parallel array
+        icsdMaps[ii],           # parallel array
+        conn,
+        cursor,
+        wrapId,
+        dbtablemodel)
+    except Exception, exc:
+      print 'readVasp.py.  caught exc: %s' % (repr(exc),)
+      print '  dir:   "%s"' % (os.path.join( topDir, relDirs[ii]),)
+      print '===== traceback start ====='
+      print traceback.format_exc( limit=None)
+      print '===== traceback end ====='
 
   # Add one row to the contrib table.
   # Coord with wrapUpload.py main.

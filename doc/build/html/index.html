@@ -46,8 +46,15 @@
           <div class="body">
             
   <p class="graphviz">
-<img src="_images/graphviz-e406041128a990c5848c849a3207a27cc9e48caa.png" alt="digraph nrelmat {
-  graph [label=&quot;NREL MatDB Data Flow&quot;, labelloc=t, fontsize=30];
+<img src="_images/graphviz-2c1b1afacf96608cea28d8c32f8174b853c1ca91.png" alt="digraph nrelmat {
+  //graph [label=&quot;NREL MatDB Data Flow&quot;, labelloc=t, fontsize=30];
+  rank=source;
+  legendx [shape=none, margin=0, label=&lt;
+    &lt;table border=&quot;0&quot; cellborder=&quot;0&quot; cellspacing=&quot;0&quot; cellpadding=&quot;1&quot;&gt;
+    &lt;tr&gt;&lt;td&gt;&lt;font point-size=&quot;30&quot;&gt; NREL MatDB Data Flow &lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;
+    &lt;tr&gt;&lt;td&gt;&lt;font point-size=&quot;20&quot;&gt; Click any box for details &lt;/font&gt;&lt;/td&gt;&lt;/tr&gt;
+    &lt;/table&gt;
+  &gt;];
   rankdir = TB;
   node [color=blue, shape=box, fontsize=11];
   edge [fontsize=11];
@@ -84,7 +91,7 @@
       &lt;tr&gt; &lt;td align=&quot;left&quot;&gt; For each dir: &lt;/td&gt; &lt;/tr&gt;
       &lt;tr&gt; &lt;td align=&quot;left&quot;&gt;       Call readVasp to extract statistics &lt;/td&gt; &lt;/tr&gt;
       &lt;tr&gt; &lt;td align=&quot;left&quot;&gt;       Add a row to the model table &lt;/td&gt; &lt;/tr&gt;
-      &lt;tr&gt; &lt;td align=&quot;left&quot;&gt; Call augmentDb to calc additional statitics for the model table &lt;/td&gt; &lt;/tr&gt;
+      &lt;tr&gt; &lt;td align=&quot;left&quot;&gt; Call augmentDb to calc additional statistics for the model table &lt;/td&gt; &lt;/tr&gt;
       &lt;tr&gt; &lt;td align=&quot;left&quot;&gt; Add a row to the contrib table &lt;/td&gt; &lt;/tr&gt;
     &lt;/table&gt;
   &gt;];
@@ -119,6 +126,7 @@
     &lt;/table&gt;
   &gt;];
 
+  legendx -&gt; wrapUpload [style=invis];
   wrapUpload -&gt; wrapReceive [label=&lt;&lt;font face=&quot;courier-bold&quot;&gt;scp&lt;/font&gt; upload&gt;];
   wrapReceive -&gt; fillDbVasp [label=&quot;method call&quot;];
   fillDbVasp -&gt; flatDatabase [label=&quot;NFS&quot;]
@@ -127,12 +135,12 @@
   flatDatabase -&gt; webServer [label=&quot;NFS&quot;];
 }" usemap="#nrelmat" />
 <map id="nrelmat" name="nrelmat">
-<area shape="rect" id="node1" href="wrapUpload.html" title="Click for wrapUpload details" alt="" coords="90,60,382,151"/>
-<area shape="rect" id="node2" href="wrapReceive.html" title="Click for wrapReceive details" alt="" coords="123,215,349,323"/>
-<area shape="rect" id="node3" href="fillDbVasp.html" title="Click for fillDbVasp details" alt="" coords="44,388,428,513"/>
-<area shape="rect" id="node4" href="flatDatabase.html" title="Click for flat file database details" alt="" coords="5,579,185,632"/>
-<area shape="rect" id="node5" href="sqlDatabase.html" title="Click for PostgreSQL database details" alt="" coords="209,577,546,633"/>
-<area shape="rect" id="node6" href="webServer.html" title="Click for web server details" alt="" coords="132,697,396,788"/>
+<area shape="rect" id="node2" href="wrapUpload.html" title="Click for wrapUpload details" alt="" coords="90,131,382,221"/>
+<area shape="rect" id="node3" href="wrapReceive.html" title="Click for wrapReceive details" alt="" coords="123,286,349,394"/>
+<area shape="rect" id="node4" href="fillDbVasp.html" title="Click for fillDbVasp details" alt="" coords="41,459,431,584"/>
+<area shape="rect" id="node5" href="flatDatabase.html" title="Click for flat file database details" alt="" coords="5,649,185,703"/>
+<area shape="rect" id="node6" href="sqlDatabase.html" title="Click for PostgreSQL database details" alt="" coords="209,648,546,704"/>
+<area shape="rect" id="node7" href="webServer.html" title="Click for web server details" alt="" coords="132,768,396,859"/>
 </map>
 </p>
 <div class="section" id="indices-and-tables">

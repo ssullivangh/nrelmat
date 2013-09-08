@@ -265,11 +265,11 @@ def addChemforms( bugLev, curCols, db_rows):
   '''
 
   if bugLev >= 1:
-    print 'addChemform beg: curCols: %s' % (curCols,)
-    print 'addChemform beg: num rows: %d' % (len(db_rows),)
+    print 'addChemforms beg: curCols: %s' % (curCols,)
+    print 'addChemforms beg: num rows: %d' % (len(db_rows),)
     if len(db_rows) > 0:
-      print 'addChemform beg: len of first row: %d' % (len(db_rows[0]),)
-      print 'addChemform beg: first row: %s' % (db_rows[0],)
+      print 'addChemforms beg: len of first row: %d' % (len(db_rows[0]),)
+      print 'addChemforms beg: first row: %s' % (db_rows[0],)
 
   icolmident = getIcol( curCols, 'model.mident')
   icolnames = getIcol( curCols, 'model.typenames')
@@ -310,8 +310,8 @@ def addChemforms( bugLev, curCols, db_rows):
         chemtext += ' %s %d' % (tnames[ii], tnums[ii],)
       chemtext += ' '
 
-      if bugLev >= 1:
-        print ('addChemform: mident: %d  tnames: %s  tnums: %s'
+      if bugLev >= 5:
+        print ('addChemforms: mident: %d  tnames: %s  tnums: %s'
           + '  formula: %s  chemtext: %s') \
           % (mident, tnames, tnums, repr( formula), repr( chemtext),)
       row.append( formula)
@@ -320,7 +320,7 @@ def addChemforms( bugLev, curCols, db_rows):
 
   newCols = ['formula', 'chemtext']
   if bugLev >= 1:
-    print 'addChemform end: newCols: %s' % (newCols,)
+    print 'addChemforms end: newCols: %s' % (newCols,)
   return newCols
 
 
@@ -383,7 +383,7 @@ def addMinenergy( bugLev, curCols, db_rows):
 
     pair = minMap[formulaSymnum]      # [minEnergy, minId]
     minId = pair[1]
-    if bugLev >= 1:
+    if bugLev >= 5:
       print 'addMinenergy: mident: %d  formula: %s  symgrp: %s  minId: %d' \
         % (mident, formula, symgroupnum, minId,)
     row.append( minId)      # mident having the min energy for this formula
@@ -438,7 +438,7 @@ def addEnthalpy( bugLev, curCols, db_rows):
     typenums = row[icolTypenums]
     energy = row[icolEnergy]
     enthalpy = calcEnthalpy( typenames, typenums, energy)  # may be None
-    if bugLev >= 1:
+    if bugLev >= 5:
       print 'addEnthalpy: mident: %d  formula: %s  energy: %g  enthalpy: %s' \
         % (mident, formula, energy, enthalpy,)
     row.append( enthalpy)
@@ -538,17 +538,20 @@ def calcEnthalpy( typenames, typenums, energy):
     'Zr': -5.8747056261113126,
   }
 
-  totNum = sum( typenums)
+  if typenums == None or len(typenums) == 0: enthalpy = None
+  else:
 
-  enthalpy = energy
+    totNum = sum( typenums)
 
-  for ii in range(len(typenames)):
-    name = typenames[ii]
-    num = typenums[ii]
-    mufere = mus_final.get( name, None)
-    if mufere == None: enthalpy = None
-    if enthalpy != None:
-      enthalpy -= num * mufere / float(totNum)
+    enthalpy = energy
+
+    for ii in range(len(typenames)):
+      name = typenames[ii]
+      num = typenums[ii]
+      mufere = mus_final.get( name, None)
+      if mufere == None: enthalpy = None
+      if enthalpy != None:
+        enthalpy -= num * mufere / float(totNum)
 
   return enthalpy
 

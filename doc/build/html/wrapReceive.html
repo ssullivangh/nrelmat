@@ -24,9 +24,7 @@
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="nrelmat 1.0.0 documentation" href="index.html" />
-    <link rel="next" title="fillDbVasp.py" href="fillDbVasp.html" />
-    <link rel="prev" title="wrapUpload.py" href="wrapUpload.html" /> 
+    <link rel="top" title="nrelmat 1.0.0 documentation" href="index.html" /> 
   </head>
   <body>
     <div class="related">
@@ -38,12 +36,6 @@
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="right" >
-          <a href="fillDbVasp.html" title="fillDbVasp.py"
-             accesskey="N">next</a> |</li>
-        <li class="right" >
-          <a href="wrapUpload.html" title="wrapUpload.py"
-             accesskey="P">previous</a> |</li>
         <li><a href="index.html">nrelmat 1.0.0 documentation</a> &raquo;</li> 
       </ul>
     </div>  
@@ -56,8 +48,14 @@
   <div class="section" id="wrapreceive-py">
 <h1>wrapReceive.py<a class="headerlink" href="#wrapreceive-py" title="Permalink to this headline">¶</a></h1>
 <p>The server runs a single Python program: wrapReceive.py.
-Every few seconds wrapReceive checks for files in the
-directory /data/incoming.  If it finds a file there having
+Every few seconds wrapReceive checks for files sent into the
+directory /data/incoming by the client process
+<a class="reference external" href="wrapUpload.html">wrapUpload</a>.</p>
+<p>In particular, <tt class="docutils literal"><span class="pre">wrapReceive</span></tt> checks for files having the
+format <tt class="docutils literal"><span class="pre">wrapId.flag</span></tt>.
+See the <a class="reference external" href="sqlDatabase.html">SQL database overview</a>
+for more information on the <tt class="docutils literal"><span class="pre">wrapId</span></tt>.</p>
+<p>If <tt class="docutils literal"><span class="pre">wrapReceive</span></tt> finds a file there having
 the format <tt class="docutils literal"><span class="pre">wrapId.flag</span></tt>, ...</p>
 <blockquote>
 <div><ul class="simple">
@@ -298,12 +296,6 @@ is already running, and if so, quits.</p>
       </div>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
-  <h4>Previous topic</h4>
-  <p class="topless"><a href="wrapUpload.html"
-                        title="previous chapter">wrapUpload.py</a></p>
-  <h4>Next topic</h4>
-  <p class="topless"><a href="fillDbVasp.html"
-                        title="next chapter">fillDbVasp.py</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/wrapReceive.txt"
@@ -335,12 +327,6 @@ is already running, and if so, quits.</p>
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="right" >
-          <a href="fillDbVasp.html" title="fillDbVasp.py"
-             >next</a> |</li>
-        <li class="right" >
-          <a href="wrapUpload.html" title="wrapUpload.py"
-             >previous</a> |</li>
         <li><a href="index.html">nrelmat 1.0.0 documentation</a> &raquo;</li> 
       </ul>
     </div>

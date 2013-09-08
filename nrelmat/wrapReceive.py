@@ -75,9 +75,9 @@ def main():
 
   **readIncoming**
     Every few seconds list the files in inDir.
-    For each file name matching ``wrapId.flag``, call function
+    For each file name matching ``wrapId.zzflag``, call function
     :func:`gatherArchive` to process the three files:
-    ``wrapId.json``, ``wrapId.tgz``, and ``wrapId.flag``.
+    ``wrapId.json``, ``wrapId.tgz``, and ``wrapId.zzflag``.
     Since program :mod:`wrapUpload` always writes
     the flag file last, the other two should already be present.
 
@@ -179,7 +179,7 @@ def main():
       for fname in fnames:
         # If matches, returns (wrapId, adate, userid, hostname).
         wrapId = wrapUpload.parseUui( fname)
-        if wrapId != None and fname.endswith('.flag'):
+        if wrapId != None and fname.endswith('.zzflag'):
           if bugLev >= 1: wrapUpload.logit('main: wrapId: %s' % (wrapId,))
 
           excStg = None
@@ -236,7 +236,7 @@ def gatherArchive(
   '''
   Moves inDirPath/wrapId.* to archDir and adds the info to the database.
 
-  Moves inDirPath/wrapId{.json,.tgz,.flag} to the new dir archDir/wrapId.
+  Moves inDirPath/wrapId{.json,.tgz,.zzflag} to the new dir archDir/wrapId.
   Untars the .tgz file.
   Then calls function :func:`processTree` to add the info to the database.
 
@@ -262,13 +262,13 @@ def gatherArchive(
   # Check paths
   jsonPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.json'))
   archPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.tgz'))
-  flagPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.flag'))
+  flagPathOld = os.path.abspath( os.path.join( inDirPath, wrapId+'.zzflag'))
   wrapUpload.checkFileFull( jsonPathOld)
   wrapUpload.checkFileFull( archPathOld)
   wrapUpload.checkFile( flagPathOld)
 
   # Move (actually copy, then remove the old one)
-  # x.json, x.tgz, x.flag to subDir==archDir/wrapId
+  # x.json, x.tgz, x.zzflag to subDir==archDir/wrapId
   subDir = os.path.join( archDirPath, wrapId)
   os.mkdir( subDir)
   shutil.copy2( jsonPathOld, subDir)
@@ -280,7 +280,7 @@ def gatherArchive(
 
   jsonPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.json'))
   archPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.tgz'))
-  flagPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.flag'))
+  flagPathNew = os.path.abspath( os.path.join( subDir, wrapId+'.zzflag'))
 
   vdir = os.path.join( subDir, vdirName)
   os.mkdir( vdir)

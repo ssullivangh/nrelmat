@@ -7,7 +7,14 @@
 
 
     digraph nrelmat {
-      graph [label="NREL MatDB Data Flow", labelloc=t, fontsize=30];
+      //graph [label="NREL MatDB Data Flow", labelloc=t, fontsize=30];
+      rank=source;
+      legendx [shape=none, margin=0, label=<
+        <table border="0" cellborder="0" cellspacing="0" cellpadding="1">
+        <tr><td><font point-size="30"> NREL MatDB Data Flow </font></td></tr>
+        <tr><td><font point-size="20"> Click any box for details </font></td></tr>
+        </table>
+      >];
       rankdir = TB;
       node [color=blue, shape=box, fontsize=11];
       edge [fontsize=11];
@@ -44,7 +51,7 @@
           <tr> <td align="left"> For each dir: </td> </tr>
           <tr> <td align="left">       Call readVasp to extract statistics </td> </tr>
           <tr> <td align="left">       Add a row to the model table </td> </tr>
-          <tr> <td align="left"> Call augmentDb to calc additional statitics for the model table </td> </tr>
+          <tr> <td align="left"> Call augmentDb to calc additional statistics for the model table </td> </tr>
           <tr> <td align="left"> Add a row to the contrib table </td> </tr>
         </table>
       >];
@@ -79,6 +86,7 @@
         </table>
       >];
 
+      legendx -> wrapUpload [style=invis];
       wrapUpload -> wrapReceive [label=<<font face="courier-bold">scp</font> upload>];
       wrapReceive -> fillDbVasp [label="method call"];
       fillDbVasp -> flatDatabase [label="NFS"]

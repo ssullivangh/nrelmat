@@ -24,9 +24,7 @@
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="nrelmat 1.0.0 documentation" href="index.html" />
-    <link rel="next" title="wrapReceive.py" href="wrapReceive.html" />
-    <link rel="prev" title="Indices and tables" href="index.html" /> 
+    <link rel="top" title="nrelmat 1.0.0 documentation" href="index.html" /> 
   </head>
   <body>
     <div class="related">
@@ -38,12 +36,6 @@
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="right" >
-          <a href="wrapReceive.html" title="wrapReceive.py"
-             accesskey="N">next</a> |</li>
-        <li class="right" >
-          <a href="index.html" title="Indices and tables"
-             accesskey="P">previous</a> |</li>
         <li><a href="index.html">nrelmat 1.0.0 documentation</a> &raquo;</li> 
       </ul>
     </div>  
@@ -66,7 +58,9 @@ control which subdirectories are accepted for uploading.</li>
 </ul>
 </div></blockquote>
 <p>The wrapUpload program creates a unique identifier
-for this upload, called the <strong>wrapId</strong>.</p>
+for this upload, called the <tt class="docutils literal"><span class="pre">wrapId</span></tt>.
+See the <a class="reference external" href="sqlDatabase.html">SQL database overview</a>
+for more information on the <tt class="docutils literal"><span class="pre">wrapId</span></tt>.</p>
 <p>Then wrapUpload makes a list of all files to be
 uploaded.  These must be in directories that passed the
 filters above and is restricted to the files:</p>
@@ -81,8 +75,11 @@ filters above and is restricted to the files:</p>
 <li>vasprun.xml: All results in XML format.</li>
 </ul>
 </div></blockquote>
-<p>Then wrapUpload makes a single <tt class="docutils literal"><span class="pre">tar.gz</span></tt> file
-of all the files, and uses <tt class="docutils literal"><span class="pre">scp</span></tt> to upload three files:</p>
+<p>Then wrapUpload makes a single JSON file, <tt class="docutils literal"><span class="pre">wrapId.json</span></tt>,
+containing metadata such as the list of directories.
+Then wrapUpload makes a single compressed tar file, <tt class="docutils literal"><span class="pre">wrapId.tgz</span></tt>,
+containing all the files.  Finally wrapUpload
+uses <tt class="docutils literal"><span class="pre">scp</span></tt> to upload three files:</p>
 <blockquote>
 <div><ul class="simple">
 <li>wrapId.json: General statistics and information</li>
@@ -90,7 +87,8 @@ of all the files, and uses <tt class="docutils literal"><span class="pre">scp</s
 <li>wrapId.flag: Zero-length flag.</li>
 </ul>
 </div></blockquote>
-<p>The wrapId.flag file gets uploaded last.  The server doesn&#8217;t
+<p>The wrapId.flag file gets uploaded last.  The server
+process <a class="reference external" href="wrapReceive.html">wrapReceive</a> doesn&#8217;t
 start processing the files until receiving the flag file,
 thereby preventing the server from starting
 to process partly-received data.</p>
@@ -730,12 +728,6 @@ and is far easier to use.</p>
       </div>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
-  <h4>Previous topic</h4>
-  <p class="topless"><a href="index.html"
-                        title="previous chapter">Indices and tables</a></p>
-  <h4>Next topic</h4>
-  <p class="topless"><a href="wrapReceive.html"
-                        title="next chapter">wrapReceive.py</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/wrapUpload.txt"
@@ -767,12 +759,6 @@ and is far easier to use.</p>
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="right" >
-          <a href="wrapReceive.html" title="wrapReceive.py"
-             >next</a> |</li>
-        <li class="right" >
-          <a href="index.html" title="Indices and tables"
-             >previous</a> |</li>
         <li><a href="index.html">nrelmat 1.0.0 documentation</a> &raquo;</li> 
       </ul>
     </div>

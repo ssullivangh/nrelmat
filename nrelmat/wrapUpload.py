@@ -129,21 +129,21 @@ def main():
                                    If ``keepList`` is specified,
                                    ``keepPatterns`` and ``omitPatterns``
                                    must not be specified.
-        
+
   **-keepPatterns**   string       Comma separated list of
                                    regular expressions matching
                                    the relative paths of those directories
                                    to be kept.  If specified,
                                    ``keepList`` must not be specified.
-        
+
   **-omitPatterns**   string       Comma separated list of
                                    regular expressions matching
                                    the relative paths of those directories
                                    to be omitted.  If specified,
                                    ``keepList`` must not be specified.
-        
+
   **-topDir**         string       Top of dir tree to upload.
-        
+
   **-workDir**        string       Work dir
 
   **-serverInfo**     string       JSON file containing info about the server.
@@ -283,21 +283,21 @@ def doUpload(
     If ``keepList`` is specified,
     ``keepPatterns`` and ``omitPatterns``
     must not be specified.
-        
+
   * keepPatterns (str[]):
     List of regular expressions matching
     the relative paths of those directories
     to be kept.  If specified,
     ``keepList`` must not be specified.
-        
+
   * omitPatterns (str[]):
     List of regular expressions matching
     the relative paths of those directories
     to be omitted.  If specified,
     ``keepList`` must not be specified.
-        
+
   * topDir (str):       Top of dir tree to upload.
-        
+
   * workDir (str):      Work dir
 
   * serverInfo (str):   JSON file containing info about the server
@@ -310,6 +310,7 @@ def doUpload(
 
   with open( serverInfo) as fin:
     serverMap = json.load( fin)
+  if bugLev >= 1: print 'doUpload: serverMap: ', serverMap
   for key in ['hostname', 'userid', 'password', 'dir']:
     if not serverMap.has_key( key):
       throwerr('serverInfo is missing key: %s' % (key,))
@@ -318,6 +319,7 @@ def doUpload(
   metadataForce = None
   if metadataSpec != None:
     metadataForce = parseMetadata( metadataSpec)
+  if bugLev >= 1: print 'doUpload: metadataForce: ', metadataForce
 
   # Get keepAbsPaths from file keepList
   # Use a set and os.path.abspath to make sure entries are unique.
@@ -344,8 +346,11 @@ def doUpload(
             throwerr('keepList line is not a dir.  iline: %d  line: %s' \
               % (iline, line,))
           keepAbsPathSet.add( apath)
+
     keepAbsPaths = list( keepAbsPathSet)
     keepAbsPaths.sort()
+    if bugLev >= 1: print 'doUpload: len(keepAbsPaths): ', len(keepAbsPaths)
+    if bugLev >= 5: print 'doUpload: keepAbsPaths: ', keepAbsPaths
 
   digestDir = os.path.join( workDir, digestDirName)
 
@@ -357,6 +362,8 @@ def doUpload(
   # for a directory tree.  Uses absolute paths.
   statInfos = []
   getStatInfos( bugLev, absTopDir, statInfos)
+  if bugLev >= 1: print 'doUpload: len(statInfos): ', len(statInfos)
+  if bugLev >= 5: print 'doUpload: statInfos: ', statInfos
 
   # Init miscMap
   curDate = datetime.datetime.now()
@@ -368,14 +375,16 @@ def doUpload(
     'userId': userId,
     'hostName': hostName,
   }
+  if bugLev >= 1: print 'doUpload: miscMap: ', miscMap
 
   # Create countMap
   countMap = {}
   for nm in requireNames + optionNames:
     count = findNumFiles( nm, absTopDir)
     countMap[nm] = count
-    if bugLev >= 5:
-      print 'wrapUpload: tag: %s  total count: %d' % (nm, count,)
+    if bugLev >= 1:
+      print 'doUpload: nm: %s  total count: %d' % (nm, count,)
+  if bugLev >= 1: print 'doUpload: countMap: ', countMap
 
   relDirs = []           # parallel: list of dirs we archive
   dirMaps = []           # parallel: list of dir info maps
@@ -440,10 +449,15 @@ def doUpload(
 
   # Print statistics
   msg = 'wrapUpload: file summary:\n'
+  msg += '  total num kept dirs: %d' % (numKeptDir,)
   for nm in requireNames:
     totNum = countMap[nm]
-    msg += '  Total num %-12s files found: %4d    Kept: %4d  Omitted: %4d\n' \
-      % (nm, totNum, numKeptDir, totNum - numKeptDir,)
+    omitted = totNum - numKeptDir
+    # The omitted can be neg if num metadata is 1 but
+    # is metadataForce, applied to all dirs.
+    if omitted < 0: omitted = 0
+    msg += '  Total num %-12s files found: %4d    Omitted: %4d\n' \
+      % (nm, totNum, omitted,)
   logit( msg)
 
   # Coord with fillDbVasp.py fillTable
@@ -473,8 +487,8 @@ def doUpload(
   fBase = os.path.join( digestDir, uui)
 
   overFile = fBase + '.json'
-  tarFile = fBase + '.tgz' 
-  flagFile = fBase + '.flag' 
+  tarFile = fBase + '.tgz'
+  flagFile = fBase + '.zzflag'
 
   # Write JSON to overFile
   with open( overFile, 'w') as fout:
@@ -543,7 +557,7 @@ def searchDirs(
     the relative paths of those directories
     to be kept.  If specified,
     ``keepList`` must not be specified.
-        
+
   * omitPatterns (str[]):
     List of regular expressions matching
     the relative paths of those directories
@@ -551,9 +565,9 @@ def searchDirs(
     ``keepList`` must not be specified.
 
   * absTopDir (str): Absolute path of the original top of dir tree to upload.
-        
+
   * relPath (str): Relative path so far, somewhere below absTopDir.
-        
+
   * metadataForce (map):
     Metadata map to be forced on all.
     If specified, the metadata files found
@@ -684,7 +698,7 @@ def iterateDirs(
     List of absolute paths of dirs to archive.
 
   * absTopDir (str): Absolute path of the original top of dir tree to upload.
-        
+
   * metadataForce (map):
     Metadata map to be forced on all.
     If specified, the metadata files found
@@ -756,7 +770,7 @@ def processDir(
   * absTopDir (str): Absolute path of the original top of dir tree to upload.
 
   * relPath (str): Relative path so far, somewhere below absTopDir.
-        
+
   * metadataForce (map):
     Metadata map to be forced on all.
     If specified, the metadata files found
@@ -914,7 +928,7 @@ def getStatMap( bugLev, fpath):
 def getStatInfos( bugLev, fname, statInfos):
   '''
   Recursive: creates a list of statInfoMaps for an entire tree.
-  
+
   Appends a map of fileName -> os.stat()
   to the statInfos list, and recurses on subdirs.
 
@@ -1052,7 +1066,7 @@ def getIcsdMap( bugLev, absTopDir, relPath):
 def unused_extractPotcar( fname):
   '''
   (No longer used): Reads and saves the header sections from a POTCAR file.
-  
+
   Saves every section starting with 'PAW_PBE' to the following
   line 'Description'.
 
@@ -1100,7 +1114,7 @@ def unused_extractPotcar( fname):
 def parseMetadata( fpath):
   '''
   Parses a metadata file and returns a corresponding map.
-  
+
   **Parameters**:
 
   * fpath (str): Name of the input metadata file.
@@ -1142,7 +1156,7 @@ def parseMetadata( fpath):
 
   metaMap = {}
   if len(lines) < 2:
-    throwerr('invalid metadata.  file: \"%s\"' % ( fpath,))
+    throwerr('invalid metadata.  file: "%s"' % ( fpath,))
 
   iline = 0
   while iline < len(lines):
@@ -1152,14 +1166,16 @@ def parseMetadata( fpath):
     else:
       mat = re.match(r'^:(\w+):(.*)$', line)
       if not mat:
-        throwerr('invalid metadata.  approx iline: %d  file: \"%s\"' \
-          % (iline, fpath,))
+        throwerr(('invalid metadata.'
+          + '  file: "%s"  approx iline: %d  line: "%s"')
+          % (fpath, iline, line,))
       field = mat.group(1)
       value = mat.group(2)        # init value
 
       if metaMap.has_key(field):
-        throwerr('multiple spec of field: "%s"  file: "%s"\n' \
-          % (field, fpath,))
+        throwerr(('multiple spec of field: "%s"'
+          + '  file: "%s"  approx iline: %d  line: "%s"')
+          % (field, fpath, iline, line,))
 
       if field in [parentsTag, publicationsTag, standardsTag, keywordsTag]:
         # Strip before we test for trailing comma below
@@ -1186,35 +1202,39 @@ def parseMetadata( fpath):
         if re.search(r'[^-a-zA-Z]', value) \
           or (not re.match('^[A-Z]$', value[0])) \
           or (not re.match('^[a-zA-Z]$', value[-1])):
-          throwerr('invalid name: "%s"  file: "%s"\n' % (value, fpath,))
+          throwerr(('invalid name: "%s"'
+            + '  file: "%s"  approx iline: %d  line: "%s"')
+            % (value, fpath, iline, line,))
         metaMap[field] = value
 
       elif field in [parentsTag, publicationsTag, standardsTag, keywordsTag]:
         # Convert value to list of keywords.
         # Insure keywords don't contain illegal chars.
         vals = []
-        toks = value.split(',')
-        for tok in toks:
-          tok = tok.strip()
-          errMsg = ''
-          if field == parentsTag:
-            if len(tok) != 128 or re.search(r'[^a-f0-9]', tok):
-              errMsg += 'Invalid parent (must be 128 chars).\n'
-          if field == publicationsTag:
-            if field.startswith('http'):
-              errMsg += 'Specify DOI without the initial http://\n'
-          if field in [standardsTag, keywordsTag]:
-            if len(tok) < 1  \
-              or re.search(r'[^-a-zA-Z0-9]', tok) \
-              or (not re.match('^[a-zA-Z]$', tok[0])) \
-              or (not re.match('^[a-zA-Z0-9]$', tok[-1])):
-              errMsg += 'Invalid keyword.\n'
-          if len(errMsg) > 0:
-            errMsg += '  Invalid item: "%s"\n' % (tok,) \
-              + '  Containing value: "%s"\n' % (value,) \
-              + '  file: %s\n' % (fpath,)
-            throwerr( errMsg)
-          vals.append( tok)
+        if len( value) > 0:
+          toks = value.split(',')
+          for tok in toks:
+            tok = tok.strip()
+            errMsg = ''
+            if field == parentsTag:
+              if len(tok) != 128 or re.search(r'[^a-f0-9]', tok):
+                errMsg += 'Invalid parent (must be 128 chars).\n'
+            if field == publicationsTag:
+              if field.startswith('http'):
+                errMsg += 'Specify DOI without the initial http://\n'
+            if field in [standardsTag, keywordsTag]:
+              if len(tok) < 1  \
+                or re.search(r'[^-a-zA-Z0-9]', tok) \
+                or (not re.match('^[a-zA-Z]$', tok[0])) \
+                or (not re.match('^[a-zA-Z0-9]$', tok[-1])):
+                errMsg += 'Invalid keyword: "%s"\n' % (tok,)
+            if len(errMsg) > 0:
+              errMsg += '  Invalid item: "%s"\n' % (tok,) \
+                + '  Containing value: "%s"\n' % (value,) \
+                + '  file: "%s"  approx iline: %d  line: "%s"\n' \
+                % (fpath, iline, line,)
+              throwerr( errMsg)
+            vals.append( tok)
         metaMap[field] = vals         # set list
 
       elif field == notesTag:
@@ -1225,7 +1245,7 @@ def parseMetadata( fpath):
           % (field, iline, fpath,))
 
   for nm in requiredFields:
-    if not metaMap.has_key(nm): 
+    if not metaMap.has_key(nm):
       throwerr('missing field: \"%s\" in file: \"%s\"' % (nm, fpath,))
 
   legalStandards = [
@@ -1250,7 +1270,7 @@ def parseMetadata( fpath):
 def checkFileFull( fname):
   '''
   Insures that fname exists and has length > 0.
-  
+
   **Parameters**:
 
   * fname (str): Name of the input file.
@@ -1273,7 +1293,7 @@ def checkFileFull( fname):
 def checkFile( fname):
   '''
   Insures that fname exists.  It may have length == 0.
-  
+
   **Parameters**:
 
   * fname (str): Name of the input file.
@@ -1299,7 +1319,7 @@ def checkFile( fname):
 def runSubprocess( bugLev, wkDir, args, showStdout):
   '''
   Calls the executable indicated by args and waits for completion.
-  
+
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
@@ -1560,7 +1580,7 @@ def throwerr( msg):
   **Returns**
 
   * (Never returns)
-  
+
   **Raises**
 
   * Exception

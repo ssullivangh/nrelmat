@@ -12,7 +12,9 @@ The program takes as input either ...
   * A list of specific directories to upload.
 
 The wrapUpload program creates a unique identifier
-for this upload, called the **wrapId**.
+for this upload, called the ``wrapId``.
+See the `SQL database overview <sqlDatabase.html>`_
+for more information on the ``wrapId``.
 
 Then wrapUpload makes a list of all files to be
 uploaded.  These must be in directories that passed the
@@ -26,14 +28,18 @@ filters above and is restricted to the files:
   * OUTCAR: General log and results in human-readable format.
   * vasprun.xml: All results in XML format.
 
-Then wrapUpload makes a single ``tar.gz`` file
-of all the files, and uses ``scp`` to upload three files:
+Then wrapUpload makes a single JSON file, ``wrapId.json``,
+containing metadata such as the list of directories.
+Then wrapUpload makes a single compressed tar file, ``wrapId.tgz``,
+containing all the files.  Finally wrapUpload
+uses ``scp`` to upload three files:
 
   * wrapId.json: General statistics and information
   * wrapId.tgz: Compendium of all files to be archived.
   * wrapId.flag: Zero-length flag.
 
-The wrapId.flag file gets uploaded last.  The server doesn't
+The wrapId.flag file gets uploaded last.  The server
+process `wrapReceive <wrapReceive.html>`_ doesn't
 start processing the files until receiving the flag file,
 thereby preventing the server from starting
 to process partly-received data.

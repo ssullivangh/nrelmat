@@ -112,6 +112,12 @@ def main():
 
 
 # Returns ResClass instance.
+# If all is ok, we return a ResClass instance with
+#   resObj.excMsg = None
+#   resObj.excTrace = None
+# Else we return a ResClass instance with
+#   resObj.excMsg = exception message
+#   resObj.excTrace = exception traceback
 
 def parseDir(
   bugLev,
@@ -139,8 +145,8 @@ def parseDir(
     throwerr('inDir is not a dir: "%s"' % (inDir,))
 
   resObj = ResClass()
-  resObj.excTrace = None
   resObj.excMsg = None
+  resObj.excTrace = None
 
   try:
     if inType == 'pylada':
@@ -155,15 +161,14 @@ def parseDir(
       parseXml( bugLev, inFile, maxLev, resObj)
     else: throwerr('unknown inType: %s' % (inType,))
   except Exception, exc:
-    resObj.excTrace = traceback.format_exc( limit=None)
     resObj.excMsg = repr(exc)
+    resObj.excTrace = traceback.format_exc( limit=None)
     print 'readVasp.py.  caught exc: %s' % (resObj.excMsg,)
     print '  inType:   "%s"' % (inType,)
     print '  inDir:    "%s"' % (inDir,)
     print '===== traceback start ====='
     print resObj.excTrace
     print '===== traceback end ====='
-    throwerr( exc)
 
   return resObj
 
@@ -332,7 +337,7 @@ def parsePylada( bugLev, inFile, resObj):
 
 #====================================================================
 
-def parseXml( bugLev, inXml, maxLev, resObj):
+def parseXml( bugLev, inFile, maxLev, resObj):
   '''
   Extracts info from the vasprun.xml file from a VASP run,
   using the Python xml.etree.cElementTree API.
@@ -340,7 +345,7 @@ def parseXml( bugLev, inXml, maxLev, resObj):
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
-  * inFile (str): Path of the input OUTCAR file.
+  * inFile (str): Path of the input vasprun.xml file.
   * resObj (class ResClass): data object: we set attributes here.
 
   **Returns**:
@@ -348,7 +353,12 @@ def parseXml( bugLev, inXml, maxLev, resObj):
   * None
   '''
 
-  tree = etree.parse( inXml)
+  try:
+    tree = etree.parse( inFile)
+  except Exception, exc:
+    throwerr(('parseXml: invalid xml in file: "%s"\n'
+      + '  Msg: %s\n') % (inFile, repr(exc),))
+
   root = tree.getroot()
   if bugLev >= 1: printNode( root, 0, maxLev)      # node, curLev, maxLev
 
@@ -377,9 +387,28 @@ def parseXml( bugLev, inXml, maxLev, resObj):
   for node in nodes:
     txt = node.text
     toks = txt.split()
-    if len(toks) != 2: throwerr('invalid times: %s' % (node,))
-    iterCpuTimes.append( float( toks[0]))
-    iterRealTimes.append( float( toks[1]))
+    if len(toks) == 1:
+      # Kluge: sometimes the two time fields run together:
+      #     <time name="totalsc">18560.1718566.89</time>
+      # should be:
+      #     <time name="totalsc">18560.17 18566.89</time>
+      # In this case, try to split it,
+      # or just use the first time for both values.
+      tok = toks[0]
+      ix = tok.find('.')
+      if ix < 0: throwerr('invalid times: %s' % (etree.tostring(node),))
+      iy = tok.find('.', ix + 1)
+      if iy < 0 or iy != len(tok) - 3:
+        throwerr('invalid times: %s' % (etree.tostring(node),))
+      tmStga = tok[:ix+3]
+      tmStgb = tok[ix+3:]
+    elif len(toks) == 2:
+      tmStga = toks[0]
+      tmStgb = toks[1]
+    else: throwerr('invalid times: %s' % (etree.tostring(node),))
+    iterCpuTimes.append( float( tmStga))
+    iterRealTimes.append( float( tmStgb))
+
   resObj.iterCpuTimes = iterCpuTimes
   resObj.iterRealTimes = iterRealTimes
   resObj.iterTotalTime = np.sum( iterRealTimes)
@@ -409,9 +438,6 @@ def parseXml( bugLev, inXml, maxLev, resObj):
   #   ENCUT = 252.0
   resObj.encut_ev = getScalar( root, 'incar/i[@name=\'ENCUT\']', float)
   if bugLev >= 5: print 'encut_ev: %g' % (resObj.encut_ev,)
-
-  resObj.ibrion = getScalar( root, 'incar/i[@name=\'IBRION\']', int)
-  if bugLev >= 5: print 'ibrion: %g' % (resObj.ibrion,)
 
   resObj.isif = getScalar( root, 'incar/i[@name=\'ISIF\']', int)
   if bugLev >= 5: print 'isif: %g' % (resObj.isif,)
@@ -479,6 +505,19 @@ def parseXml( bugLev, inXml, maxLev, resObj):
   resObj.numSpin = getScalar(
     elecNode, 'separator[@name=\'electronic spin\']/i[@name=\'ISPIN\']', int)
   if bugLev >= 5: print 'numSpin: %g' % (resObj.numSpin,)
+
+
+
+  if bugLev >= 5: print '\n===== ionic parameters =====\n'
+
+  # Some parameters like IBRION are also found in INCAR, sometimes.
+  # But apparently they are always in the parameters section.
+  lst = root.findall('parameters/separator[@name=\'ionic\']')
+  if len(lst) != 1: throwerr('ionic parameters not found')
+  ionNode = lst[0]
+  resObj.ibrion = getScalar( ionNode, 'i[@name=\'IBRION\']', int)
+  if bugLev >= 5: print 'ibrion: %g' % (resObj.ibrion,)
+
 
 
   if bugLev >= 5: print '\n===== atom info =====\n'
@@ -760,8 +799,8 @@ def parseXml( bugLev, inXml, maxLev, resObj):
   if shp[0] != resObj.numSpin: throwerr('numSpin mismatch')
   if shp[1] != resObj.numKpoint: throwerr('numKpoint mismatch')
   if shp[2] != prmNumBand:     # see caution at prmNumBand, above
-    print('numBand mismatch: prm: %d  shape: %d  inXml: %s' \
-      % (prmNumBand, shp[2], inXml,))
+    print('numBand mismatch: prm: %d  shape: %d  inFile: %s' \
+      % (prmNumBand, shp[2], inFile,))
   resObj.numBand = shp[2]
 
   resObj.eigenMat = eigenMrr['eigene']

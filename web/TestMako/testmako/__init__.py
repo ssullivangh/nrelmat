@@ -222,16 +222,17 @@ def main(global_config, **settings):
 
   # Set up routes
   config.add_static_view('static', 'static', cache_max_age=3600)
-  config.add_route('rtLogin',   '/login')
-  config.add_route('rtLogout',  '/logout')
-  config.add_route('rtHome',    '/home')
-  config.add_route('rtQueryStd',  '/queryStd*queryRest')
+  config.add_route('rtLogin', '/login')
+  config.add_route('rtLogout', '/logout')
+  config.add_route('rtHome', '/home')
+  config.add_route('rtQueryStd', '/queryStd*queryRest')
                                                # The * matches all rest
-  config.add_route('rtQueryAdv',  '/queryAdv*queryRest')
-  config.add_route('rtDetail',  '/detail*queryRest')
-  config.add_route('rtVisualize',  '/visualize*queryRest')
-  config.add_route('rtDownload',  '/download*queryRest')
-  config.add_route('rtContrib',  '/contrib*queryRest')
+  config.add_route('rtQueryAdv', '/queryAdv*queryRest')
+  config.add_route('rtDetail', '/detail*queryRest')
+  config.add_route('rtVisualize', '/visualize*queryRest')
+  config.add_route('rtDownloadSql', '/downloadSql*queryRest')
+  config.add_route('rtDownloadFlat', '/downloadFlat*queryRest')
+  config.add_route('rtContrib', '/contrib*queryRest')
 
   config.add_notfound_view('.views:vwNotFound')
 
