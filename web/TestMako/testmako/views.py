@@ -281,9 +281,12 @@ def getIcsdColDescs():
     # The dbName must be lower case since the Postgresql
     # DB API descriptor returns all lower case values.
 
-    #           dbName         tag            fmt   desc
-    ColumnDesc('cident',      'id',           '%d', 'MatDB CID'),
-    ColumnDesc('symgroupnum', 'symGroupNum',  '%s', 'Symmetry group num'),
+    #           dbName         tag             fmt   desc
+    ColumnDesc('cident',       'id',           '%d', 'MatDB CID'),
+    ColumnDesc('chemname',     'chemName',     '%s', 'Chemical name'),
+    ColumnDesc('mineralname',  'mineralName',  '%s', 'Mineral name'),
+    ColumnDesc('symgroupname', 'symGroupName', '%s', 'Symmetry group name'),
+    ColumnDesc('symgroupnum',  'symGroupNum',  '%d', 'Symmetry group num'),
   ]
 
   return columnDescs
@@ -536,6 +539,12 @@ def vwQueryStd( request):
       qrequiresStg = dlmap['qrequires'][0].strip()
       qforbidsStg = dlmap['qforbids'][0].strip()
       qexpr = dlmap['qexpr'][0].strip()
+      if dlmap.has_key('showLastNameStevanovic'):
+        showLastNameStevanovic = True
+      else: showLastNameStevanovic = False
+      if dlmap.has_key('showLastNameZawadzki'):
+        showLastNameZawadzki = True
+      else: showLastNameZawadzki = False
       if dlmap.has_key('showMinEnergyOnly'):
         showMinEnergyOnly = True
       else: showMinEnergyOnly = False
@@ -559,12 +568,21 @@ def vwQueryStd( request):
         print 'vwQueryStd: qrequirePairs: %s' % (qrequirePairs,)
         print 'vwQueryStd: qforbidPairs: %s' % (qforbidPairs,)
         print 'vwQueryStd: qexpr: %s' % (qexpr,)
+        print 'vwQueryStd: showLastNameStevanovic: %s' % (showLastNameStevanovic,)
+        print 'vwQueryStd: showLastNameZawadzki: %s' % (showLastNameZawadzki,)
         print 'vwQueryStd: showMinEnergyOnly: %s' % (showMinEnergyOnly,)
         print 'vwQueryStd: currentPage: %d' % (currentPage,)
         print 'vwQueryStd: qoffset: %d' % (qoffset,)
         print 'vwQueryStd: qlimit: %d' % (qlimit,)
 
       whereClause = 'TRUE'
+
+      if showLastNameStevanovic and showLastNameZawadzki: pass
+      elif showLastNameStevanovic:
+        whereClause += ' AND model.meta_lastname = \'Stevanovic\''
+      elif showLastNameZawadzki:
+        whereClause += ' AND model.meta_lastname = \'Zawadzki\''
+      else: whereClause += ' AND FALSE'      # no results
 
       if showMinEnergyOnly:
         whereClause += ' AND model.mident = model.minenergyid'
@@ -655,17 +673,12 @@ def vwQueryStd( request):
         db_rows = rowVecs[2]                # query 2
         for ii in range( 0, numTotal, qlimit):
           pageNames.append('%d' % (ii / qlimit + 1,))
-        print '################################### numTotal: ', numTotal
         # Get icolMap: dbColName -> icol in queryFields
         icolMap = getIcolMap( descMap, queryFields)
-        print '################################### icolMap: ', icolMap
-        print '################################### errMsg A: ', errMsg
 
         tableHtml = formatTableHtml(
           descMap, icolMap, showFields, colVecs, db_rows)
-        print '################################### errMsg B: ', errMsg
     except Exception, exc:
-      print '############################ caught: ', exc
       traceback.print_exc( None, sys.stdout)
       errMsg = str( exc)
 
@@ -674,6 +687,8 @@ def vwQueryStd( request):
     qset = 'superset'
     qforbidsStg = 'H'
     qexpr = '0 < bandgap and bandgap < 1.5'
+    showLastNameStevanovic = True
+    showLastNameZawadzki = True
     showMinEnergyOnly = True
 
     # qsort = 'energyPerAtom bandgap icsdNum dbId'
@@ -697,6 +712,8 @@ def vwQueryStd( request):
     qrequires      = qrequiresStg,
     qforbids       = qforbidsStg,
     qexpr          = qexpr,
+    showLastNameStevanovic = showLastNameStevanovic,
+    showLastNameZawadzki = showLastNameZawadzki,
     showMinEnergyOnly = showMinEnergyOnly,
     # qsort          = qsort,
     qlimit         = qlimit,
@@ -910,10 +927,8 @@ def vwDetail(request):
       % (security.authenticated_userid( request),)
 
   # Get map: dbname -> pair (cdesc, value)
-  (errMsg, dbMap) = getDbDetail( buglev, request, settings)
+  (errMsg, detailFields, dbMap) = getDbDetail( buglev, request, settings)
 
-  detailFieldStg = settings['db_detail_fields']
-  detailFields = detailFieldStg.split()
   db_pairs = []
   for nm in detailFields:
     pair = dbMap[nm]   # Get pair (cdesc, value)
@@ -949,7 +964,7 @@ def vwDownloadSql(request):
   format = dlmap['format'][0]
 
   # Get map: dbname -> pair (cdesc, value)
-  (subErrMsg, dbMap) = getDbDetail( buglev, request, settings)
+  (subErrMsg, detailFields, dbMap) = getDbDetail( buglev, request, settings)
   errMsg += subErrMsg
 
   content = ''
@@ -1001,7 +1016,7 @@ def vwDownloadFlat(request):
   format = dlmap['format'][0]
 
   # Get map: dbname -> pair (cdesc, value)
-  (subErrMsg, dbMap) = getDbDetail( buglev, request, settings)
+  (subErrMsg, detailFields, dbMap) = getDbDetail( buglev, request, settings)
   errMsg += subErrMsg
 
   archRoot = settings['archive_root']
@@ -1071,7 +1086,7 @@ def vwVisualize(request):
       % (security.authenticated_userid( request),)
 
   # Get map: dbname -> pair (cdesc, value)
-  (errMsg, dbMap) = getDbDetail( buglev, request, settings)
+  (errMsg, detailFields, dbMap) = getDbDetail( buglev, request, settings)
 
   basisMat = dbMap['model.finalbasismat'][1]
   posMat = dbMap['model.finaldirectposmat'][1]
@@ -1318,12 +1333,10 @@ def formatTableHtml(
 #====================================================================
 
 
-# Returns dbMap: dbName -> pair (cdesc, value)
+# Returns tuple: (errMsg, detailFields, dbMap)
+# where dbMap is: dbName -> pair (cdesc, value)
 
 def getDbDetail( buglev, request, settings):
-
-  detailFieldStg = settings['db_detail_fields']
-  detailFields = detailFieldStg.split()
 
   dlmap = request.GET.dict_of_lists()
   if buglev >= 5:
@@ -1343,11 +1356,10 @@ def getDbDetail( buglev, request, settings):
   except Exception, exc:
     errMsg += 'invalid mident: %s<br>\n' % (midentstg,)
 
+
   query0 = 'set search_path to %s' % (settings['db_schema'],)
 
-  nameStg = ', '.join( detailFields)
-  query1 = 'SELECT %s FROM model, icsd WHERE model.icsdnum = icsd.icsdnum AND mident = %d' \
-    % (nameStg, midentval,)
+  query1 = 'SELECT icsdnum FROM model WHERE mident = %d' % (midentval,)
 
   queries = [query0, query1,]
   dbRes = dbQuery( buglev, settings, queries)
@@ -1357,22 +1369,60 @@ def getDbDetail( buglev, request, settings):
     errMsg += '%s<br>\n' % (dbRes,)
   else:
     (msgs, colVecs, rowVecs) = dbRes
-    db_row = rowVecs[1][0]          # query 1, row 0
-    db_cols = colVecs[1]            # query 1
+    # Two queries create two sets of rows; should be 1 row in second query.
+    if len(rowVecs) != 2 or len(rowVecs[1]) != 1:
+      errMsg += 'mident not found: %d<br>\n' % (midentval,)
+    else:
+      db_row = rowVecs[1][0]          # query 1, row 0
+      db_cols = colVecs[1]            # query 1
+      icsdnum = db_row[0]
+      if icsdnum == None:
+        detailFieldStg = settings['db_general_detail_fields']
+        detailFields = detailFieldStg.split()
+        nameStg = ', '.join( detailFields)
+        query1 = 'SELECT %s FROM model WHERE mident = %d' \
+          % (nameStg, midentval,)
+      else:
+        detailFieldStg = settings['db_general_detail_fields'] \
+          + ' ' + settings['db_icsd_detail_fields']
+        detailFields = detailFieldStg.split()
+        nameStg = ', '.join( detailFields)
+        query1 = 'SELECT %s FROM model, icsd WHERE model.icsdnum = icsd.icsdnum AND mident = %d' \
+          % (nameStg, midentval,)
 
-    columnDescs = getModelColDescs()
-    descMap = getDescMap( 'model.', columnDescs)    # dbColName -> ColumnDesc
 
-    columnDescs = getIcsdColDescs()
-    descMap.update( getDescMap( 'icsd.', columnDescs))
 
-    # Get icolMap: dbColName -> icol in queryFields
-    icolMap = getIcolMap( descMap, detailFields)
+  query0 = 'set search_path to %s' % (settings['db_schema'],)
 
-    for nm in detailFields:
-      dbMap[nm] = ( descMap[nm], db_row[icolMap[nm]])
 
-  return (errMsg, dbMap)
+  queries = [query0, query1,]
+  dbRes = dbQuery( buglev, settings, queries)
+
+  dbMap = {}       # dbname -> value
+  if type(dbRes).__name__ == 'str':
+    errMsg += '%s<br>\n' % (dbRes,)
+  else:
+    (msgs, colVecs, rowVecs) = dbRes
+    # Two queries create two sets of rows; should be 1 row in second query.
+    if len(rowVecs) != 2 or len(rowVecs[1]) != 1:
+      errMsg += 'mident not found: %d<br>\n' % (midentval,)
+    else:
+      db_row = rowVecs[1][0]          # query 1, row 0
+      db_cols = colVecs[1]            # query 1
+
+      columnDescs = getModelColDescs()
+      descMap = getDescMap( 'model.', columnDescs)    # dbColName -> ColumnDesc
+
+      columnDescs = getIcsdColDescs()
+      descMap.update( getDescMap( 'icsd.', columnDescs))
+
+      # Get icolMap: dbColName -> icol in queryFields
+      icolMap = getIcolMap( descMap, detailFields)
+
+      for nm in detailFields:
+        dbMap[nm] = ( descMap[nm], db_row[icolMap[nm]])
+
+  return (errMsg, detailFields, dbMap)
 
 # end getDbDetail
 
@@ -1557,7 +1607,6 @@ def tokenize(
   varMap,      # userVarName -> dbVarName
   stg):
 
-  print '########### tokenize: stg: ', repr(stg)
   varKeys = varMap.keys()
   sqlKeywords = ['and', 'or', 'not']
 

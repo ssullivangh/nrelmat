@@ -80,6 +80,23 @@ function setInitialFocus() {
 	</tr>
 	</table>
 
+    <br>
+	<b>Include results from:</b>
+	Stevanovic:
+    % if showLastNameStevanovic:
+	  <input type="checkbox" name="showLastNameStevanovic" checked="checked">
+	% else:
+	  <input type="checkbox" name="showLastNameStevanovic">
+	% endif
+	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+	Zawadzki:
+    % if showLastNameZawadzki:
+	  <input type="checkbox" name="showLastNameZawadzki" checked="checked">
+	% else:
+	  <input type="checkbox" name="showLastNameZawadzki">
+	% endif
+
+    <br>
     % if showMinEnergyOnly:
 	  <input type="checkbox" name="showMinEnergyOnly" checked="checked">
 	% else:
