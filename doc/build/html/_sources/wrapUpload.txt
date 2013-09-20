@@ -36,9 +36,9 @@ uses ``scp`` to upload three files:
 
   * wrapId.json: General statistics and information
   * wrapId.tgz: Compendium of all files to be archived.
-  * wrapId.flag: Zero-length flag.
+  * wrapId.zzflag: Zero-length flag.
 
-The wrapId.flag file gets uploaded last.  The server
+The wrapId.zzflag file gets uploaded last.  The server
 process `wrapReceive <wrapReceive.html>`_ doesn't
 start processing the files until receiving the flag file,
 thereby preventing the server from starting

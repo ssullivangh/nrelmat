@@ -6,8 +6,9 @@ import pyramid.security as security
 class AuthRootFactory(object):   # xxx shouldn't this extend dict?
 
   __acl__ = [
-    (security.Allow, security.Everyone, 'permView'),
-    (security.Allow, 'grpAlpha',        'permEdit'),
+    (security.Allow, security.Everyone,      'permView'),
+    ###(security.Allow, 'grpAlpha',          'permEdit'),
+    (security.Allow, security.Authenticated, 'permEdit'),
   ]
 
   def __init__(self, request):

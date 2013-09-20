@@ -24,9 +24,7 @@
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
     <script type="text/javascript" src="http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
-    <link rel="top" title="nrelmat 1.0.0 documentation" href="index.html" />
-    <link rel="next" title="augmentDb.py" href="augmentDb.html" />
-    <link rel="prev" title="NREL MatDB SQL Database Overview" href="sqlDatabase.html" /> 
+    <link rel="top" title="nrelmat 1.0.0 documentation" href="index.html" /> 
   </head>
   <body>
     <div class="related">
@@ -38,12 +36,6 @@
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="right" >
-          <a href="augmentDb.html" title="augmentDb.py"
-             accesskey="N">next</a> |</li>
-        <li class="right" >
-          <a href="sqlDatabase.html" title="NREL MatDB SQL Database Overview"
-             accesskey="P">previous</a> |</li>
         <li><a href="index.html">nrelmat 1.0.0 documentation</a> &raquo;</li> 
       </ul>
     </div>  
@@ -168,13 +160,13 @@ using the PyLada vasp.Extract API.</p>
 
 <dl class="function">
 <dt id="nrelmat.readVasp.parseXml">
-<tt class="descclassname">nrelmat.readVasp.</tt><tt class="descname">parseXml</tt><big>(</big><em>bugLev</em>, <em>inXml</em>, <em>maxLev</em>, <em>resObj</em><big>)</big><a class="reference internal" href="_modules/nrelmat/readVasp.html#parseXml"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nrelmat.readVasp.parseXml" title="Permalink to this definition">¶</a></dt>
+<tt class="descclassname">nrelmat.readVasp.</tt><tt class="descname">parseXml</tt><big>(</big><em>bugLev</em>, <em>inFile</em>, <em>maxLev</em>, <em>resObj</em><big>)</big><a class="reference internal" href="_modules/nrelmat/readVasp.html#parseXml"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nrelmat.readVasp.parseXml" title="Permalink to this definition">¶</a></dt>
 <dd><p>Extracts info from the vasprun.xml file from a VASP run,
 using the Python xml.etree.cElementTree API.</p>
 <p><strong>Parameters</strong>:</p>
 <ul class="simple">
 <li>bugLev (int): Debug level.  Normally 0.</li>
-<li>inFile (str): Path of the input OUTCAR file.</li>
+<li>inFile (str): Path of the input vasprun.xml file.</li>
 <li>resObj (class ResClass): data object: we set attributes here.</li>
 </ul>
 <p><strong>Returns</strong>:</p>
@@ -521,12 +513,6 @@ from str to the specified type.</p>
       </div>
       <div class="sphinxsidebar">
         <div class="sphinxsidebarwrapper">
-  <h4>Previous topic</h4>
-  <p class="topless"><a href="sqlDatabase.html"
-                        title="previous chapter">NREL MatDB SQL Database Overview</a></p>
-  <h4>Next topic</h4>
-  <p class="topless"><a href="augmentDb.html"
-                        title="next chapter">augmentDb.py</a></p>
   <h3>This Page</h3>
   <ul class="this-page-menu">
     <li><a href="_sources/readVasp.txt"
@@ -558,12 +544,6 @@ from str to the specified type.</p>
         <li class="right" >
           <a href="py-modindex.html" title="Python Module Index"
              >modules</a> |</li>
-        <li class="right" >
-          <a href="augmentDb.html" title="augmentDb.py"
-             >next</a> |</li>
-        <li class="right" >
-          <a href="sqlDatabase.html" title="NREL MatDB SQL Database Overview"
-             >previous</a> |</li>
         <li><a href="index.html">nrelmat 1.0.0 documentation</a> &raquo;</li> 
       </ul>
     </div>

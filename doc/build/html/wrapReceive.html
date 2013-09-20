@@ -52,17 +52,17 @@ Every few seconds wrapReceive checks for files sent into the
 directory /data/incoming by the client process
 <a class="reference external" href="wrapUpload.html">wrapUpload</a>.</p>
 <p>In particular, <tt class="docutils literal"><span class="pre">wrapReceive</span></tt> checks for files having the
-format <tt class="docutils literal"><span class="pre">wrapId.flag</span></tt>.
+format <tt class="docutils literal"><span class="pre">wrapId.zzflag</span></tt>.
 See the <a class="reference external" href="sqlDatabase.html">SQL database overview</a>
 for more information on the <tt class="docutils literal"><span class="pre">wrapId</span></tt>.</p>
 <p>If <tt class="docutils literal"><span class="pre">wrapReceive</span></tt> finds a file there having
-the format <tt class="docutils literal"><span class="pre">wrapId.flag</span></tt>, ...</p>
+the format <tt class="docutils literal"><span class="pre">wrapId.zzflag</span></tt>, ...</p>
 <blockquote>
 <div><ul class="simple">
 <li>It checks that the three files are present:<ul>
 <li>wrapId.json: General statistics and information</li>
 <li>wrapId.tgz: Compendium of all files to be archived.</li>
-<li>wrapId.flag: Zero-length flag.</li>
+<li>wrapId.zzflag: Zero-length flag.</li>
 </ul>
 </li>
 <li>It creates a directory /data/arch/wrapId, and moves
@@ -124,9 +124,9 @@ The function is determined by the <strong>-func</strong> parameter; see below.</
 <dl class="docutils">
 <dt><strong>readIncoming</strong></dt>
 <dd>Every few seconds list the files in inDir.
-For each file name matching <tt class="docutils literal"><span class="pre">wrapId.flag</span></tt>, call function
+For each file name matching <tt class="docutils literal"><span class="pre">wrapId.zzflag</span></tt>, call function
 <a class="reference internal" href="#nrelmat.wrapReceive.gatherArchive" title="nrelmat.wrapReceive.gatherArchive"><tt class="xref py py-func docutils literal"><span class="pre">gatherArchive()</span></tt></a> to process the three files:
-<tt class="docutils literal"><span class="pre">wrapId.json</span></tt>, <tt class="docutils literal"><span class="pre">wrapId.tgz</span></tt>, and <tt class="docutils literal"><span class="pre">wrapId.flag</span></tt>.
+<tt class="docutils literal"><span class="pre">wrapId.json</span></tt>, <tt class="docutils literal"><span class="pre">wrapId.tgz</span></tt>, and <tt class="docutils literal"><span class="pre">wrapId.zzflag</span></tt>.
 Since program <tt class="xref py py-mod docutils literal"><span class="pre">wrapUpload</span></tt> always writes
 the flag file last, the other two should already be present.</dd>
 <dt><strong>redoArch</strong></dt>
@@ -199,7 +199,7 @@ wrapReceive.py -func redoArch</pre>
 <dt id="nrelmat.wrapReceive.gatherArchive">
 <tt class="descclassname">nrelmat.wrapReceive.</tt><tt class="descname">gatherArchive</tt><big>(</big><em>bugLev</em>, <em>inDirPath</em>, <em>archDirPath</em>, <em>wrapId</em>, <em>inSpec</em><big>)</big><a class="reference internal" href="_modules/nrelmat/wrapReceive.html#gatherArchive"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#nrelmat.wrapReceive.gatherArchive" title="Permalink to this definition">¶</a></dt>
 <dd><p>Moves inDirPath/wrapId.* to archDir and adds the info to the database.</p>
-<p>Moves inDirPath/wrapId{.json,.tgz,.flag} to the new dir archDir/wrapId.
+<p>Moves inDirPath/wrapId{.json,.tgz,.zzflag} to the new dir archDir/wrapId.
 Untars the .tgz file.
 Then calls function <a class="reference internal" href="#nrelmat.wrapReceive.processTree" title="nrelmat.wrapReceive.processTree"><tt class="xref py py-func docutils literal"><span class="pre">processTree()</span></tt></a> to add the info to the database.</p>
 <p><strong>Parameters</strong>:</p>

@@ -165,8 +165,10 @@ def main(global_config, **settings):
       return res
 
   catePolicy = AuthTktAuthenticationPolicy(
-      'k21ljxbv32jkdh32sd8u93hslki502slkj23lb',
-      callback=authGetUserGroups, hashalg='sha512')
+      # The secret is used for auth_tkt signing
+      secret='k21ljxbv32jkdh32sd8u93hslki502slkj23lb',
+      callback=None,    # or use authGetUserGroups for group mgmt
+      hashalg='sha512')
   # xxx how to check buglev?
   print '\ninit.main: catePolicy: ', catePolicy
 

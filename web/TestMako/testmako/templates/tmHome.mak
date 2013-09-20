@@ -41,6 +41,9 @@ The NREL MatDB was created by the NREL Computational Materials Science team,
 which is within the Theoretical Materials Science Group of
 NREL's Energy Sciences division.
 
+<p>
+The source code documentation is
+<a href="/static/doc/html/index.html"> here </a>.
 <table>
 <tr>
 <!--

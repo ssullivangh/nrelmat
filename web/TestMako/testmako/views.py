@@ -248,26 +248,9 @@ def getContribColDescs():
     ColumnDesc('curdate',    'date',     '%s',  'Date of upload'),
     ColumnDesc('userid',     'userId',   '%s',  'userId'),
     ColumnDesc('hostname',   'hostName', '%s',  'hostname'),
-    ColumnDesc('uploaddir',  'uploadDir', '%s', 'top upload directory'),
+    ColumnDesc('topdir',     'topDir',   '%s',  'top dir'),
     ColumnDesc('numkeptdir',  'numKeptDir', '%d', 'num subdirs uploaded'),
     ColumnDesc('reldirs',    'relDirs',  '[%s]', 'relative upload subdirs'),
-    ColumnDesc('relfiles',   'relFiles', '[%s]', 'relative upload files'),
-    ColumnDesc('tot_metadata',  'tot_metadata', '%d',
-      'total num metadata files found'),
-    ColumnDesc('tot_doscar',    'tot_doscar', '%d',
-      'total num DOSCAR files found'),
-    ColumnDesc('tot_incar',     'tot_incar', '%d',
-      'total num INCAR files found'),
-    ColumnDesc('tot_kpoints',   'tot_kpoints', '%d',
-      'total num KPOINTS files found'),
-    ColumnDesc('tot_poscar',    'tot_poscar', '%d',
-      'total num POSCAR files found'),
-    ColumnDesc('tot_potcar',    'tot_potcar', '%d',
-      'total num POTCAR files found'),
-    ColumnDesc('tot_outcar',    'tot_outcar', '%d',
-      'total num OUTCAR files found'),
-    ColumnDesc('tot_vasprun',   'tot_vasprun', '%d',
-      'total num vasprun.xml files found'),
   ]
 
   return columnDescs
@@ -1160,7 +1143,7 @@ def vwContrib(request):
   query0 = 'set search_path to %s' % (settings['db_schema'],)
 
   nameStg = ', '.join( contribFields)
-  query1 = 'SELECT %s FROM contrib ORDER BY wrapid DESC' % (nameStg,)
+  query1 = 'SELECT %s FROM contrib ORDER BY wrapid' % (nameStg,)
 
   queries = [query0, query1,]
   dbRes = dbQuery( buglev, settings, queries)
@@ -1174,7 +1157,7 @@ def vwContrib(request):
     db_cols = colVecs[1]            # query 1
 
     columnDescs = getContribColDescs()
-    descMap = getDescMap( '', columnDescs)        # dbColName -> ColumnDesc
+    descMap = getDescMap('contrib.', columnDescs)   # dbColName -> ColumnDesc
 
     # Get icolMap: dbColName -> icol in queryFields
     icolMap = getIcolMap( descMap, contribFields)

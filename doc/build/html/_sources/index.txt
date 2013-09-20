@@ -96,6 +96,19 @@
     }
 
 
+.. toctree::
+   :maxdepth: 1
+
+   SQL database overview: Overview of the database system. <sqlDatabase>
+   Flat file overview: Overview of the database system. <flatDatabase>
+   Web overview: Overview of the web server system. <webServer>
+   augmentDb.py: Add additional info to the model table. <augmentDb>
+   fillDbVasp.py: Read files created by wrapUpload and add rows to the model table.  <fillDbVasp>
+   readVasp.py: Read and parse an OUTCAR or vasprun.xml file <readVasp>
+   wrapReceive.py: Receive results sent by wrapUpload.sh <wrapReceive>
+   wrapUpload.py: Locate, extract, and upload results to the server running wrapReceive. <wrapUpload>
+
+
 
 Indices and tables
 ==================

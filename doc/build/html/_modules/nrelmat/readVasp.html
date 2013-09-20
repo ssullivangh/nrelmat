@@ -162,6 +162,12 @@
 
 
 <span class="c"># Returns ResClass instance.</span>
+<span class="c"># If all is ok, we return a ResClass instance with</span>
+<span class="c">#   resObj.excMsg = None</span>
+<span class="c">#   resObj.excTrace = None</span>
+<span class="c"># Else we return a ResClass instance with</span>
+<span class="c">#   resObj.excMsg = exception message</span>
+<span class="c">#   resObj.excTrace = exception traceback</span>
 </div>
 <div class="viewcode-block" id="parseDir"><a class="viewcode-back" href="../../readVasp.html#nrelmat.readVasp.parseDir">[docs]</a><span class="k">def</span> <span class="nf">parseDir</span><span class="p">(</span>
   <span class="n">bugLev</span><span class="p">,</span>
@@ -189,8 +195,8 @@
     <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;inDir is not a dir: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">inDir</span><span class="p">,))</span>
 
   <span class="n">resObj</span> <span class="o">=</span> <span class="n">ResClass</span><span class="p">()</span>
-  <span class="n">resObj</span><span class="o">.</span><span class="n">excTrace</span> <span class="o">=</span> <span class="bp">None</span>
   <span class="n">resObj</span><span class="o">.</span><span class="n">excMsg</span> <span class="o">=</span> <span class="bp">None</span>
+  <span class="n">resObj</span><span class="o">.</span><span class="n">excTrace</span> <span class="o">=</span> <span class="bp">None</span>
 
   <span class="k">try</span><span class="p">:</span>
     <span class="k">if</span> <span class="n">inType</span> <span class="o">==</span> <span class="s">&#39;pylada&#39;</span><span class="p">:</span>
@@ -205,15 +211,14 @@
       <span class="n">parseXml</span><span class="p">(</span> <span class="n">bugLev</span><span class="p">,</span> <span class="n">inFile</span><span class="p">,</span> <span class="n">maxLev</span><span class="p">,</span> <span class="n">resObj</span><span class="p">)</span>
     <span class="k">else</span><span class="p">:</span> <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;unknown inType: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">inType</span><span class="p">,))</span>
   <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span>
-    <span class="n">resObj</span><span class="o">.</span><span class="n">excTrace</span> <span class="o">=</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">(</span> <span class="n">limit</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span>
     <span class="n">resObj</span><span class="o">.</span><span class="n">excMsg</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span>
+    <span class="n">resObj</span><span class="o">.</span><span class="n">excTrace</span> <span class="o">=</span> <span class="n">traceback</span><span class="o">.</span><span class="n">format_exc</span><span class="p">(</span> <span class="n">limit</span><span class="o">=</span><span class="bp">None</span><span class="p">)</span>
     <span class="k">print</span> <span class="s">&#39;readVasp.py.  caught exc: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">resObj</span><span class="o">.</span><span class="n">excMsg</span><span class="p">,)</span>
     <span class="k">print</span> <span class="s">&#39;  inType:   &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">inType</span><span class="p">,)</span>
     <span class="k">print</span> <span class="s">&#39;  inDir:    &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">inDir</span><span class="p">,)</span>
     <span class="k">print</span> <span class="s">&#39;===== traceback start =====&#39;</span>
     <span class="k">print</span> <span class="n">resObj</span><span class="o">.</span><span class="n">excTrace</span>
     <span class="k">print</span> <span class="s">&#39;===== traceback end =====&#39;</span>
-    <span class="n">throwerr</span><span class="p">(</span> <span class="n">exc</span><span class="p">)</span>
 
   <span class="k">return</span> <span class="n">resObj</span>
 
@@ -382,7 +387,7 @@
 
 <span class="c">#====================================================================</span>
 </div>
-<div class="viewcode-block" id="parseXml"><a class="viewcode-back" href="../../readVasp.html#nrelmat.readVasp.parseXml">[docs]</a><span class="k">def</span> <span class="nf">parseXml</span><span class="p">(</span> <span class="n">bugLev</span><span class="p">,</span> <span class="n">inXml</span><span class="p">,</span> <span class="n">maxLev</span><span class="p">,</span> <span class="n">resObj</span><span class="p">):</span>
+<div class="viewcode-block" id="parseXml"><a class="viewcode-back" href="../../readVasp.html#nrelmat.readVasp.parseXml">[docs]</a><span class="k">def</span> <span class="nf">parseXml</span><span class="p">(</span> <span class="n">bugLev</span><span class="p">,</span> <span class="n">inFile</span><span class="p">,</span> <span class="n">maxLev</span><span class="p">,</span> <span class="n">resObj</span><span class="p">):</span>
   <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">  Extracts info from the vasprun.xml file from a VASP run,</span>
 <span class="sd">  using the Python xml.etree.cElementTree API.</span>
@@ -390,7 +395,7 @@
 <span class="sd">  **Parameters**:</span>
 
 <span class="sd">  * bugLev (int): Debug level.  Normally 0.</span>
-<span class="sd">  * inFile (str): Path of the input OUTCAR file.</span>
+<span class="sd">  * inFile (str): Path of the input vasprun.xml file.</span>
 <span class="sd">  * resObj (class ResClass): data object: we set attributes here.</span>
 
 <span class="sd">  **Returns**:</span>
@@ -398,7 +403,12 @@
 <span class="sd">  * None</span>
 <span class="sd">  &#39;&#39;&#39;</span>
 
-  <span class="n">tree</span> <span class="o">=</span> <span class="n">etree</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span> <span class="n">inXml</span><span class="p">)</span>
+  <span class="k">try</span><span class="p">:</span>
+    <span class="n">tree</span> <span class="o">=</span> <span class="n">etree</span><span class="o">.</span><span class="n">parse</span><span class="p">(</span> <span class="n">inFile</span><span class="p">)</span>
+  <span class="k">except</span> <span class="ne">Exception</span><span class="p">,</span> <span class="n">exc</span><span class="p">:</span>
+    <span class="n">throwerr</span><span class="p">((</span><span class="s">&#39;parseXml: invalid xml in file: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span>
+      <span class="o">+</span> <span class="s">&#39;  Msg: </span><span class="si">%s</span><span class="se">\n</span><span class="s">&#39;</span><span class="p">)</span> <span class="o">%</span> <span class="p">(</span><span class="n">inFile</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span><span class="n">exc</span><span class="p">),))</span>
+
   <span class="n">root</span> <span class="o">=</span> <span class="n">tree</span><span class="o">.</span><span class="n">getroot</span><span class="p">()</span>
   <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span> <span class="n">printNode</span><span class="p">(</span> <span class="n">root</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">maxLev</span><span class="p">)</span>      <span class="c"># node, curLev, maxLev</span>
 
@@ -427,9 +437,28 @@
   <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
     <span class="n">txt</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">text</span>
     <span class="n">toks</span> <span class="o">=</span> <span class="n">txt</span><span class="o">.</span><span class="n">split</span><span class="p">()</span>
-    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">toks</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span> <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;invalid times: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">node</span><span class="p">,))</span>
-    <span class="n">iterCpuTimes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">float</span><span class="p">(</span> <span class="n">toks</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
-    <span class="n">iterRealTimes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">float</span><span class="p">(</span> <span class="n">toks</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">toks</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+      <span class="c"># Kluge: sometimes the two time fields run together:</span>
+      <span class="c">#     &lt;time name=&quot;totalsc&quot;&gt;18560.1718566.89&lt;/time&gt;</span>
+      <span class="c"># should be:</span>
+      <span class="c">#     &lt;time name=&quot;totalsc&quot;&gt;18560.17 18566.89&lt;/time&gt;</span>
+      <span class="c"># In this case, try to split it,</span>
+      <span class="c"># or just use the first time for both values.</span>
+      <span class="n">tok</span> <span class="o">=</span> <span class="n">toks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+      <span class="n">ix</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">ix</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span> <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;invalid times: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">etree</span><span class="o">.</span><span class="n">tostring</span><span class="p">(</span><span class="n">node</span><span class="p">),))</span>
+      <span class="n">iy</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="s">&#39;.&#39;</span><span class="p">,</span> <span class="n">ix</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">iy</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">iy</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">tok</span><span class="p">)</span> <span class="o">-</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;invalid times: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">etree</span><span class="o">.</span><span class="n">tostring</span><span class="p">(</span><span class="n">node</span><span class="p">),))</span>
+      <span class="n">tmStga</span> <span class="o">=</span> <span class="n">tok</span><span class="p">[:</span><span class="n">ix</span><span class="o">+</span><span class="mi">3</span><span class="p">]</span>
+      <span class="n">tmStgb</span> <span class="o">=</span> <span class="n">tok</span><span class="p">[</span><span class="n">ix</span><span class="o">+</span><span class="mi">3</span><span class="p">:]</span>
+    <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">toks</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+      <span class="n">tmStga</span> <span class="o">=</span> <span class="n">toks</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+      <span class="n">tmStgb</span> <span class="o">=</span> <span class="n">toks</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span> <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;invalid times: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">etree</span><span class="o">.</span><span class="n">tostring</span><span class="p">(</span><span class="n">node</span><span class="p">),))</span>
+    <span class="n">iterCpuTimes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">float</span><span class="p">(</span> <span class="n">tmStga</span><span class="p">))</span>
+    <span class="n">iterRealTimes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="nb">float</span><span class="p">(</span> <span class="n">tmStgb</span><span class="p">))</span>
+
   <span class="n">resObj</span><span class="o">.</span><span class="n">iterCpuTimes</span> <span class="o">=</span> <span class="n">iterCpuTimes</span>
   <span class="n">resObj</span><span class="o">.</span><span class="n">iterRealTimes</span> <span class="o">=</span> <span class="n">iterRealTimes</span>
   <span class="n">resObj</span><span class="o">.</span><span class="n">iterTotalTime</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span> <span class="n">iterRealTimes</span><span class="p">)</span>
@@ -459,9 +488,6 @@
   <span class="c">#   ENCUT = 252.0</span>
   <span class="n">resObj</span><span class="o">.</span><span class="n">encut_ev</span> <span class="o">=</span> <span class="n">getScalar</span><span class="p">(</span> <span class="n">root</span><span class="p">,</span> <span class="s">&#39;incar/i[@name=</span><span class="se">\&#39;</span><span class="s">ENCUT</span><span class="se">\&#39;</span><span class="s">]&#39;</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span>
   <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;encut_ev: </span><span class="si">%g</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">resObj</span><span class="o">.</span><span class="n">encut_ev</span><span class="p">,)</span>
-
-  <span class="n">resObj</span><span class="o">.</span><span class="n">ibrion</span> <span class="o">=</span> <span class="n">getScalar</span><span class="p">(</span> <span class="n">root</span><span class="p">,</span> <span class="s">&#39;incar/i[@name=</span><span class="se">\&#39;</span><span class="s">IBRION</span><span class="se">\&#39;</span><span class="s">]&#39;</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
-  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;ibrion: </span><span class="si">%g</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">resObj</span><span class="o">.</span><span class="n">ibrion</span><span class="p">,)</span>
 
   <span class="n">resObj</span><span class="o">.</span><span class="n">isif</span> <span class="o">=</span> <span class="n">getScalar</span><span class="p">(</span> <span class="n">root</span><span class="p">,</span> <span class="s">&#39;incar/i[@name=</span><span class="se">\&#39;</span><span class="s">ISIF</span><span class="se">\&#39;</span><span class="s">]&#39;</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
   <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;isif: </span><span class="si">%g</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">resObj</span><span class="o">.</span><span class="n">isif</span><span class="p">,)</span>
@@ -529,6 +555,19 @@
   <span class="n">resObj</span><span class="o">.</span><span class="n">numSpin</span> <span class="o">=</span> <span class="n">getScalar</span><span class="p">(</span>
     <span class="n">elecNode</span><span class="p">,</span> <span class="s">&#39;separator[@name=</span><span class="se">\&#39;</span><span class="s">electronic spin</span><span class="se">\&#39;</span><span class="s">]/i[@name=</span><span class="se">\&#39;</span><span class="s">ISPIN</span><span class="se">\&#39;</span><span class="s">]&#39;</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
   <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;numSpin: </span><span class="si">%g</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">resObj</span><span class="o">.</span><span class="n">numSpin</span><span class="p">,)</span>
+
+
+
+  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">===== ionic parameters =====</span><span class="se">\n</span><span class="s">&#39;</span>
+
+  <span class="c"># Some parameters like IBRION are also found in INCAR, sometimes.</span>
+  <span class="c"># But apparently they are always in the parameters section.</span>
+  <span class="n">lst</span> <span class="o">=</span> <span class="n">root</span><span class="o">.</span><span class="n">findall</span><span class="p">(</span><span class="s">&#39;parameters/separator[@name=</span><span class="se">\&#39;</span><span class="s">ionic</span><span class="se">\&#39;</span><span class="s">]&#39;</span><span class="p">)</span>
+  <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lst</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span> <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;ionic parameters not found&#39;</span><span class="p">)</span>
+  <span class="n">ionNode</span> <span class="o">=</span> <span class="n">lst</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+  <span class="n">resObj</span><span class="o">.</span><span class="n">ibrion</span> <span class="o">=</span> <span class="n">getScalar</span><span class="p">(</span> <span class="n">ionNode</span><span class="p">,</span> <span class="s">&#39;i[@name=</span><span class="se">\&#39;</span><span class="s">IBRION</span><span class="se">\&#39;</span><span class="s">]&#39;</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;ibrion: </span><span class="si">%g</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">resObj</span><span class="o">.</span><span class="n">ibrion</span><span class="p">,)</span>
+
 
 
   <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;</span><span class="se">\n</span><span class="s">===== atom info =====</span><span class="se">\n</span><span class="s">&#39;</span>
@@ -810,8 +849,8 @@
   <span class="k">if</span> <span class="n">shp</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">resObj</span><span class="o">.</span><span class="n">numSpin</span><span class="p">:</span> <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;numSpin mismatch&#39;</span><span class="p">)</span>
   <span class="k">if</span> <span class="n">shp</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">resObj</span><span class="o">.</span><span class="n">numKpoint</span><span class="p">:</span> <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;numKpoint mismatch&#39;</span><span class="p">)</span>
   <span class="k">if</span> <span class="n">shp</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">!=</span> <span class="n">prmNumBand</span><span class="p">:</span>     <span class="c"># see caution at prmNumBand, above</span>
-    <span class="k">print</span><span class="p">(</span><span class="s">&#39;numBand mismatch: prm: </span><span class="si">%d</span><span class="s">  shape: </span><span class="si">%d</span><span class="s">  inXml: </span><span class="si">%s</span><span class="s">&#39;</span> \
-      <span class="o">%</span> <span class="p">(</span><span class="n">prmNumBand</span><span class="p">,</span> <span class="n">shp</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">inXml</span><span class="p">,))</span>
+    <span class="k">print</span><span class="p">(</span><span class="s">&#39;numBand mismatch: prm: </span><span class="si">%d</span><span class="s">  shape: </span><span class="si">%d</span><span class="s">  inFile: </span><span class="si">%s</span><span class="s">&#39;</span> \
+      <span class="o">%</span> <span class="p">(</span><span class="n">prmNumBand</span><span class="p">,</span> <span class="n">shp</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">inFile</span><span class="p">,))</span>
   <span class="n">resObj</span><span class="o">.</span><span class="n">numBand</span> <span class="o">=</span> <span class="n">shp</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
 
   <span class="n">resObj</span><span class="o">.</span><span class="n">eigenMat</span> <span class="o">=</span> <span class="n">eigenMrr</span><span class="p">[</span><span class="s">&#39;eigene&#39;</span><span class="p">]</span>

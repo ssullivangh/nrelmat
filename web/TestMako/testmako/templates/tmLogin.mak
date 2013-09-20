@@ -18,6 +18,7 @@ function setInitialFocus() {
 
 <div id="form">
 
+Please use your NREL network ID and password.
 <form action="" method="post" name="forma">
   Userid: <input type="text" name="userid" value="${userid}"/><br/>
   Password: <input type="password" name="password" value="${password}"/><br/>

@@ -1,9 +1,0 @@
-<map id="nrelmat" name="nrelmat">
-<area shape="rect" id="node1" href="wrapUpload.py" title="&lt;TABLE&gt;" alt="" coords="5,5,219,203"/>
-<area shape="rect" id="node5" href="gv.archive.svg" title="Archive\nServer" alt="" coords="347,261,427,312"/>
-<area shape="rect" id="node2" href="gv.hpc.svg" title="HPC A" alt="" coords="75,227,149,275"/>
-<area shape="rect" id="node3" href="gv.hpc.svg" title="&lt;TABLE&gt;" alt="" coords="76,299,148,347"/>
-<area shape="rect" id="node4" href="gv.hpc.svg" title="wrapUpload | fill | scp" alt="" coords="57,371,167,464"/>
-<area shape="rect" id="node6" href="gv.database.svg" title="Database" alt="" coords="477,217,565,265"/>
-<area shape="rect" id="node7" href="gv.web.svg" title="Web\nServer" alt="" coords="616,255,688,305"/>
-</map>

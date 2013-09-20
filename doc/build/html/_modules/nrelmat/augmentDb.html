@@ -315,11 +315,11 @@
 <span class="sd">  &#39;&#39;&#39;</span>
 
   <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
-    <span class="k">print</span> <span class="s">&#39;addChemform beg: curCols: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">curCols</span><span class="p">,)</span>
-    <span class="k">print</span> <span class="s">&#39;addChemform beg: num rows: </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">db_rows</span><span class="p">),)</span>
+    <span class="k">print</span> <span class="s">&#39;addChemforms beg: curCols: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">curCols</span><span class="p">,)</span>
+    <span class="k">print</span> <span class="s">&#39;addChemforms beg: num rows: </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">db_rows</span><span class="p">),)</span>
     <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">db_rows</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-      <span class="k">print</span> <span class="s">&#39;addChemform beg: len of first row: </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">db_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]),)</span>
-      <span class="k">print</span> <span class="s">&#39;addChemform beg: first row: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">db_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span>
+      <span class="k">print</span> <span class="s">&#39;addChemforms beg: len of first row: </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">db_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">]),)</span>
+      <span class="k">print</span> <span class="s">&#39;addChemforms beg: first row: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">db_rows</span><span class="p">[</span><span class="mi">0</span><span class="p">],)</span>
 
   <span class="n">icolmident</span> <span class="o">=</span> <span class="n">getIcol</span><span class="p">(</span> <span class="n">curCols</span><span class="p">,</span> <span class="s">&#39;model.mident&#39;</span><span class="p">)</span>
   <span class="n">icolnames</span> <span class="o">=</span> <span class="n">getIcol</span><span class="p">(</span> <span class="n">curCols</span><span class="p">,</span> <span class="s">&#39;model.typenames&#39;</span><span class="p">)</span>
@@ -360,8 +360,8 @@
         <span class="n">chemtext</span> <span class="o">+=</span> <span class="s">&#39; </span><span class="si">%s</span><span class="s"> </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tnames</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">tnums</span><span class="p">[</span><span class="n">ii</span><span class="p">],)</span>
       <span class="n">chemtext</span> <span class="o">+=</span> <span class="s">&#39; &#39;</span>
 
-      <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
-        <span class="k">print</span> <span class="p">(</span><span class="s">&#39;addChemform: mident: </span><span class="si">%d</span><span class="s">  tnames: </span><span class="si">%s</span><span class="s">  tnums: </span><span class="si">%s</span><span class="s">&#39;</span>
+      <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
+        <span class="k">print</span> <span class="p">(</span><span class="s">&#39;addChemforms: mident: </span><span class="si">%d</span><span class="s">  tnames: </span><span class="si">%s</span><span class="s">  tnums: </span><span class="si">%s</span><span class="s">&#39;</span>
           <span class="o">+</span> <span class="s">&#39;  formula: </span><span class="si">%s</span><span class="s">  chemtext: </span><span class="si">%s</span><span class="s">&#39;</span><span class="p">)</span> \
           <span class="o">%</span> <span class="p">(</span><span class="n">mident</span><span class="p">,</span> <span class="n">tnames</span><span class="p">,</span> <span class="n">tnums</span><span class="p">,</span> <span class="nb">repr</span><span class="p">(</span> <span class="n">formula</span><span class="p">),</span> <span class="nb">repr</span><span class="p">(</span> <span class="n">chemtext</span><span class="p">),)</span>
       <span class="n">row</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">formula</span><span class="p">)</span>
@@ -370,7 +370,7 @@
 
   <span class="n">newCols</span> <span class="o">=</span> <span class="p">[</span><span class="s">&#39;formula&#39;</span><span class="p">,</span> <span class="s">&#39;chemtext&#39;</span><span class="p">]</span>
   <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
-    <span class="k">print</span> <span class="s">&#39;addChemform end: newCols: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">newCols</span><span class="p">,)</span>
+    <span class="k">print</span> <span class="s">&#39;addChemforms end: newCols: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">newCols</span><span class="p">,)</span>
   <span class="k">return</span> <span class="n">newCols</span>
 
 
@@ -433,7 +433,7 @@
 
     <span class="n">pair</span> <span class="o">=</span> <span class="n">minMap</span><span class="p">[</span><span class="n">formulaSymnum</span><span class="p">]</span>      <span class="c"># [minEnergy, minId]</span>
     <span class="n">minId</span> <span class="o">=</span> <span class="n">pair</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
-    <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
       <span class="k">print</span> <span class="s">&#39;addMinenergy: mident: </span><span class="si">%d</span><span class="s">  formula: </span><span class="si">%s</span><span class="s">  symgrp: </span><span class="si">%s</span><span class="s">  minId: </span><span class="si">%d</span><span class="s">&#39;</span> \
         <span class="o">%</span> <span class="p">(</span><span class="n">mident</span><span class="p">,</span> <span class="n">formula</span><span class="p">,</span> <span class="n">symgroupnum</span><span class="p">,</span> <span class="n">minId</span><span class="p">,)</span>
     <span class="n">row</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">minId</span><span class="p">)</span>      <span class="c"># mident having the min energy for this formula</span>
@@ -488,7 +488,7 @@
     <span class="n">typenums</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">icolTypenums</span><span class="p">]</span>
     <span class="n">energy</span> <span class="o">=</span> <span class="n">row</span><span class="p">[</span><span class="n">icolEnergy</span><span class="p">]</span>
     <span class="n">enthalpy</span> <span class="o">=</span> <span class="n">calcEnthalpy</span><span class="p">(</span> <span class="n">typenames</span><span class="p">,</span> <span class="n">typenums</span><span class="p">,</span> <span class="n">energy</span><span class="p">)</span>  <span class="c"># may be None</span>
-    <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
       <span class="k">print</span> <span class="s">&#39;addEnthalpy: mident: </span><span class="si">%d</span><span class="s">  formula: </span><span class="si">%s</span><span class="s">  energy: </span><span class="si">%g</span><span class="s">  enthalpy: </span><span class="si">%s</span><span class="s">&#39;</span> \
         <span class="o">%</span> <span class="p">(</span><span class="n">mident</span><span class="p">,</span> <span class="n">formula</span><span class="p">,</span> <span class="n">energy</span><span class="p">,</span> <span class="n">enthalpy</span><span class="p">,)</span>
     <span class="n">row</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">enthalpy</span><span class="p">)</span>
@@ -588,17 +588,20 @@
     <span class="s">&#39;Zr&#39;</span><span class="p">:</span> <span class="o">-</span><span class="mf">5.8747056261113126</span><span class="p">,</span>
   <span class="p">}</span>
 
-  <span class="n">totNum</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span> <span class="n">typenums</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">typenums</span> <span class="o">==</span> <span class="bp">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">typenums</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span> <span class="n">enthalpy</span> <span class="o">=</span> <span class="bp">None</span>
+  <span class="k">else</span><span class="p">:</span>
 
-  <span class="n">enthalpy</span> <span class="o">=</span> <span class="n">energy</span>
+    <span class="n">totNum</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span> <span class="n">typenums</span><span class="p">)</span>
 
-  <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">typenames</span><span class="p">)):</span>
-    <span class="n">name</span> <span class="o">=</span> <span class="n">typenames</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
-    <span class="n">num</span> <span class="o">=</span> <span class="n">typenums</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
-    <span class="n">mufere</span> <span class="o">=</span> <span class="n">mus_final</span><span class="o">.</span><span class="n">get</span><span class="p">(</span> <span class="n">name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
-    <span class="k">if</span> <span class="n">mufere</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span> <span class="n">enthalpy</span> <span class="o">=</span> <span class="bp">None</span>
-    <span class="k">if</span> <span class="n">enthalpy</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
-      <span class="n">enthalpy</span> <span class="o">-=</span> <span class="n">num</span> <span class="o">*</span> <span class="n">mufere</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">totNum</span><span class="p">)</span>
+    <span class="n">enthalpy</span> <span class="o">=</span> <span class="n">energy</span>
+
+    <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">typenames</span><span class="p">)):</span>
+      <span class="n">name</span> <span class="o">=</span> <span class="n">typenames</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+      <span class="n">num</span> <span class="o">=</span> <span class="n">typenums</span><span class="p">[</span><span class="n">ii</span><span class="p">]</span>
+      <span class="n">mufere</span> <span class="o">=</span> <span class="n">mus_final</span><span class="o">.</span><span class="n">get</span><span class="p">(</span> <span class="n">name</span><span class="p">,</span> <span class="bp">None</span><span class="p">)</span>
+      <span class="k">if</span> <span class="n">mufere</span> <span class="o">==</span> <span class="bp">None</span><span class="p">:</span> <span class="n">enthalpy</span> <span class="o">=</span> <span class="bp">None</span>
+      <span class="k">if</span> <span class="n">enthalpy</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
+        <span class="n">enthalpy</span> <span class="o">-=</span> <span class="n">num</span> <span class="o">*</span> <span class="n">mufere</span> <span class="o">/</span> <span class="nb">float</span><span class="p">(</span><span class="n">totNum</span><span class="p">)</span>
 
   <span class="k">return</span> <span class="n">enthalpy</span>
 

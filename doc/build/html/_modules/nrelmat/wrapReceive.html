@@ -125,9 +125,9 @@
 
 <span class="sd">  **readIncoming**</span>
 <span class="sd">    Every few seconds list the files in inDir.</span>
-<span class="sd">    For each file name matching ``wrapId.flag``, call function</span>
+<span class="sd">    For each file name matching ``wrapId.zzflag``, call function</span>
 <span class="sd">    :func:`gatherArchive` to process the three files:</span>
-<span class="sd">    ``wrapId.json``, ``wrapId.tgz``, and ``wrapId.flag``.</span>
+<span class="sd">    ``wrapId.json``, ``wrapId.tgz``, and ``wrapId.zzflag``.</span>
 <span class="sd">    Since program :mod:`wrapUpload` always writes</span>
 <span class="sd">    the flag file last, the other two should already be present.</span>
 
@@ -229,7 +229,7 @@
       <span class="k">for</span> <span class="n">fname</span> <span class="ow">in</span> <span class="n">fnames</span><span class="p">:</span>
         <span class="c"># If matches, returns (wrapId, adate, userid, hostname).</span>
         <span class="n">wrapId</span> <span class="o">=</span> <span class="n">wrapUpload</span><span class="o">.</span><span class="n">parseUui</span><span class="p">(</span> <span class="n">fname</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">wrapId</span> <span class="o">!=</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">fname</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&#39;.flag&#39;</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">wrapId</span> <span class="o">!=</span> <span class="bp">None</span> <span class="ow">and</span> <span class="n">fname</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s">&#39;.zzflag&#39;</span><span class="p">):</span>
           <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span> <span class="n">wrapUpload</span><span class="o">.</span><span class="n">logit</span><span class="p">(</span><span class="s">&#39;main: wrapId: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">wrapId</span><span class="p">,))</span>
 
           <span class="n">excStg</span> <span class="o">=</span> <span class="bp">None</span>
@@ -286,7 +286,7 @@
   <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">  Moves inDirPath/wrapId.* to archDir and adds the info to the database.</span>
 
-<span class="sd">  Moves inDirPath/wrapId{.json,.tgz,.flag} to the new dir archDir/wrapId.</span>
+<span class="sd">  Moves inDirPath/wrapId{.json,.tgz,.zzflag} to the new dir archDir/wrapId.</span>
 <span class="sd">  Untars the .tgz file.</span>
 <span class="sd">  Then calls function :func:`processTree` to add the info to the database.</span>
 
@@ -312,13 +312,13 @@
   <span class="c"># Check paths</span>
   <span class="n">jsonPathOld</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">inDirPath</span><span class="p">,</span> <span class="n">wrapId</span><span class="o">+</span><span class="s">&#39;.json&#39;</span><span class="p">))</span>
   <span class="n">archPathOld</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">inDirPath</span><span class="p">,</span> <span class="n">wrapId</span><span class="o">+</span><span class="s">&#39;.tgz&#39;</span><span class="p">))</span>
-  <span class="n">flagPathOld</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">inDirPath</span><span class="p">,</span> <span class="n">wrapId</span><span class="o">+</span><span class="s">&#39;.flag&#39;</span><span class="p">))</span>
+  <span class="n">flagPathOld</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">inDirPath</span><span class="p">,</span> <span class="n">wrapId</span><span class="o">+</span><span class="s">&#39;.zzflag&#39;</span><span class="p">))</span>
   <span class="n">wrapUpload</span><span class="o">.</span><span class="n">checkFileFull</span><span class="p">(</span> <span class="n">jsonPathOld</span><span class="p">)</span>
   <span class="n">wrapUpload</span><span class="o">.</span><span class="n">checkFileFull</span><span class="p">(</span> <span class="n">archPathOld</span><span class="p">)</span>
   <span class="n">wrapUpload</span><span class="o">.</span><span class="n">checkFile</span><span class="p">(</span> <span class="n">flagPathOld</span><span class="p">)</span>
 
   <span class="c"># Move (actually copy, then remove the old one)</span>
-  <span class="c"># x.json, x.tgz, x.flag to subDir==archDir/wrapId</span>
+  <span class="c"># x.json, x.tgz, x.zzflag to subDir==archDir/wrapId</span>
   <span class="n">subDir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">archDirPath</span><span class="p">,</span> <span class="n">wrapId</span><span class="p">)</span>
   <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span> <span class="n">subDir</span><span class="p">)</span>
   <span class="n">shutil</span><span class="o">.</span><span class="n">copy2</span><span class="p">(</span> <span class="n">jsonPathOld</span><span class="p">,</span> <span class="n">subDir</span><span class="p">)</span>
@@ -330,7 +330,7 @@
 
   <span class="n">jsonPathNew</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">subDir</span><span class="p">,</span> <span class="n">wrapId</span><span class="o">+</span><span class="s">&#39;.json&#39;</span><span class="p">))</span>
   <span class="n">archPathNew</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">subDir</span><span class="p">,</span> <span class="n">wrapId</span><span class="o">+</span><span class="s">&#39;.tgz&#39;</span><span class="p">))</span>
-  <span class="n">flagPathNew</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">subDir</span><span class="p">,</span> <span class="n">wrapId</span><span class="o">+</span><span class="s">&#39;.flag&#39;</span><span class="p">))</span>
+  <span class="n">flagPathNew</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">abspath</span><span class="p">(</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">subDir</span><span class="p">,</span> <span class="n">wrapId</span><span class="o">+</span><span class="s">&#39;.zzflag&#39;</span><span class="p">))</span>
 
   <span class="n">vdir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">subDir</span><span class="p">,</span> <span class="n">vdirName</span><span class="p">)</span>
   <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span> <span class="n">vdir</span><span class="p">)</span>

@@ -1,8 +1,0 @@
-<map id="nrelmat" name="nrelmat">
-<area shape="rect" id="node1" href="gv.hpc.svg" title="HPC A" alt="" coords="147,5,221,53"/>
-<area shape="rect" id="node4" href="gv.archive.svg" title="Archive\nServer" alt="" coords="368,99,448,149"/>
-<area shape="rect" id="node2" href="gv.hpc.svg" title="&lt;TABLE&gt;" alt="" coords="5,125,77,243"/>
-<area shape="rect" id="node3" href="gv.hpc.svg" title="wrapUpload | fill | scp" alt="" coords="129,77,239,171"/>
-<area shape="rect" id="node5" href="gv.database.svg" title="Database" alt="" coords="499,55,587,103"/>
-<area shape="rect" id="node6" href="gv.web.svg" title="Web\nServer" alt="" coords="637,92,709,143"/>
-</map>

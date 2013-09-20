@@ -1,7 +1,0 @@
-<map id="mainmap" name="mainmap">
-<area shape="poly" id="node1" href="http://wikipedia.com/alphaText" title="alpha" alt="" coords="84,29,82,22,76,15,67,10,56,7,44,5,32,7,21,10,12,15,6,22,4,29,6,37,12,43,21,49,32,52,44,53,56,52,67,49,76,43,82,37"/>
-<area shape="poly" id="node2" href="http://wikipedia.com/betaText" title="beta" alt="" coords="80,147,78,139,73,133,65,127,55,124,44,123,33,124,23,127,15,133,10,139,8,147,10,154,15,161,23,166,33,169,44,171,55,169,65,166,73,161,78,154"/>
-<area shape="poly" id="edge1" href="http://wikipedia.com/link" title="linkLabel" alt="" coords="47,54,47,109,41,109,41,54"/>
-<area shape="rect" id="edge1-label" href="http://wikipedia.com/link" title="linkLabel" alt="" coords="44,78,113,98"/>
-<area shape="rect" id="graph0" href="http://wikipedia.com/def" alt="" coords="0,0,119,176"/>
-</map>

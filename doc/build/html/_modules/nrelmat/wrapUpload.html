@@ -111,6 +111,9 @@
   <span class="k">print</span> <span class="s">&#39;&#39;</span>
   <span class="k">print</span> <span class="s">&#39;  -metadataSpec &lt;string&gt;  Metadata file to be forced on all.&#39;</span>
   <span class="k">print</span> <span class="s">&#39;&#39;</span>
+  <span class="k">print</span> <span class="s">&#39;  -requireIcsd  &lt;boolean&gt; no/yes: do we require that the path&#39;</span>
+  <span class="k">print</span> <span class="s">&#39;                          names of files contain ICSD info.&#39;</span>
+  <span class="k">print</span> <span class="s">&#39;&#39;</span>
   <span class="k">print</span> <span class="s">&#39;  -keepList   &lt;string&gt;    File containing the absolute paths&#39;</span>
   <span class="k">print</span> <span class="s">&#39;                          of the dirs to be uploaded.&#39;</span>
   <span class="k">print</span> <span class="s">&#39;                          Still topDir must be specified,&#39;</span>
@@ -164,6 +167,10 @@
 <span class="sd">                                   Default: None, meaning each archived</span>
 <span class="sd">                                   dir must contain a metadata file.</span>
 
+<span class="sd">  **-requireIcsd**    boolean      no/yes: do we require that the path</span>
+<span class="sd">                                   names of files contain ICSD info.</span>
+<span class="sd">                                   See notes below.</span>
+
 <span class="sd">  **-keepList**       string       File containing the absolute paths</span>
 <span class="sd">                                   of the dirs to be uploaded.</span>
 <span class="sd">                                   Still ``topDir`` must be specified,</span>
@@ -172,21 +179,21 @@
 <span class="sd">                                   If ``keepList`` is specified,</span>
 <span class="sd">                                   ``keepPatterns`` and ``omitPatterns``</span>
 <span class="sd">                                   must not be specified.</span>
-<span class="sd">        </span>
+
 <span class="sd">  **-keepPatterns**   string       Comma separated list of</span>
 <span class="sd">                                   regular expressions matching</span>
 <span class="sd">                                   the relative paths of those directories</span>
 <span class="sd">                                   to be kept.  If specified,</span>
 <span class="sd">                                   ``keepList`` must not be specified.</span>
-<span class="sd">        </span>
+
 <span class="sd">  **-omitPatterns**   string       Comma separated list of</span>
 <span class="sd">                                   regular expressions matching</span>
 <span class="sd">                                   the relative paths of those directories</span>
 <span class="sd">                                   to be omitted.  If specified,</span>
 <span class="sd">                                   ``keepList`` must not be specified.</span>
-<span class="sd">        </span>
+
 <span class="sd">  **-topDir**         string       Top of dir tree to upload.</span>
-<span class="sd">        </span>
+
 <span class="sd">  **-workDir**        string       Work dir</span>
 
 <span class="sd">  **-serverInfo**     string       JSON file containing info about the server.</span>
@@ -203,6 +210,14 @@
 <span class="sd">                                                     wrapReceive</span>
 <span class="sd">                                     =============   =========================</span>
 <span class="sd">  =================   =========    ===========================================</span>
+
+
+<span class="sd">  If requireIcsd is true, :func:`getIcsdMap` must be able</span>
+<span class="sd">  to extract ICSD info from the file names.  File names must be like: ::</span>
+
+<span class="sd">    .../icsd_083665/icsd_083665.cif/ls-anti-ferro-7/relax_cellshape/1</span>
+<span class="sd">             ^^^^^^                 ^^^^^^^^      ^ ^^^^^^^^^^^^^^^ ^</span>
+<span class="sd">            icsdNum                 magType  magNum relaxType       relaxNum</span>
 <span class="sd">  &#39;&#39;&#39;</span>
 
 
@@ -318,21 +333,21 @@
 <span class="sd">    If ``keepList`` is specified,</span>
 <span class="sd">    ``keepPatterns`` and ``omitPatterns``</span>
 <span class="sd">    must not be specified.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * keepPatterns (str[]):</span>
 <span class="sd">    List of regular expressions matching</span>
 <span class="sd">    the relative paths of those directories</span>
 <span class="sd">    to be kept.  If specified,</span>
 <span class="sd">    ``keepList`` must not be specified.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * omitPatterns (str[]):</span>
 <span class="sd">    List of regular expressions matching</span>
 <span class="sd">    the relative paths of those directories</span>
 <span class="sd">    to be omitted.  If specified,</span>
 <span class="sd">    ``keepList`` must not be specified.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * topDir (str):       Top of dir tree to upload.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * workDir (str):      Work dir</span>
 
 <span class="sd">  * serverInfo (str):   JSON file containing info about the server</span>
@@ -345,6 +360,7 @@
 
   <span class="k">with</span> <span class="nb">open</span><span class="p">(</span> <span class="n">serverInfo</span><span class="p">)</span> <span class="k">as</span> <span class="n">fin</span><span class="p">:</span>
     <span class="n">serverMap</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span> <span class="n">fin</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;doUpload: serverMap: &#39;</span><span class="p">,</span> <span class="n">serverMap</span>
   <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">[</span><span class="s">&#39;hostname&#39;</span><span class="p">,</span> <span class="s">&#39;userid&#39;</span><span class="p">,</span> <span class="s">&#39;password&#39;</span><span class="p">,</span> <span class="s">&#39;dir&#39;</span><span class="p">]:</span>
     <span class="k">if</span> <span class="ow">not</span> <span class="n">serverMap</span><span class="o">.</span><span class="n">has_key</span><span class="p">(</span> <span class="n">key</span><span class="p">):</span>
       <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;serverInfo is missing key: </span><span class="si">%s</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">key</span><span class="p">,))</span>
@@ -353,6 +369,7 @@
   <span class="n">metadataForce</span> <span class="o">=</span> <span class="bp">None</span>
   <span class="k">if</span> <span class="n">metadataSpec</span> <span class="o">!=</span> <span class="bp">None</span><span class="p">:</span>
     <span class="n">metadataForce</span> <span class="o">=</span> <span class="n">parseMetadata</span><span class="p">(</span> <span class="n">metadataSpec</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;doUpload: metadataForce: &#39;</span><span class="p">,</span> <span class="n">metadataForce</span>
 
   <span class="c"># Get keepAbsPaths from file keepList</span>
   <span class="c"># Use a set and os.path.abspath to make sure entries are unique.</span>
@@ -379,8 +396,11 @@
             <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;keepList line is not a dir.  iline: </span><span class="si">%d</span><span class="s">  line: </span><span class="si">%s</span><span class="s">&#39;</span> \
               <span class="o">%</span> <span class="p">(</span><span class="n">iline</span><span class="p">,</span> <span class="n">line</span><span class="p">,))</span>
           <span class="n">keepAbsPathSet</span><span class="o">.</span><span class="n">add</span><span class="p">(</span> <span class="n">apath</span><span class="p">)</span>
+
     <span class="n">keepAbsPaths</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span> <span class="n">keepAbsPathSet</span><span class="p">)</span>
     <span class="n">keepAbsPaths</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;doUpload: len(keepAbsPaths): &#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">keepAbsPaths</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;doUpload: keepAbsPaths: &#39;</span><span class="p">,</span> <span class="n">keepAbsPaths</span>
 
   <span class="n">digestDir</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">workDir</span><span class="p">,</span> <span class="n">digestDirName</span><span class="p">)</span>
 
@@ -392,6 +412,8 @@
   <span class="c"># for a directory tree.  Uses absolute paths.</span>
   <span class="n">statInfos</span> <span class="o">=</span> <span class="p">[]</span>
   <span class="n">getStatInfos</span><span class="p">(</span> <span class="n">bugLev</span><span class="p">,</span> <span class="n">absTopDir</span><span class="p">,</span> <span class="n">statInfos</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;doUpload: len(statInfos): &#39;</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">statInfos</span><span class="p">)</span>
+  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;doUpload: statInfos: &#39;</span><span class="p">,</span> <span class="n">statInfos</span>
 
   <span class="c"># Init miscMap</span>
   <span class="n">curDate</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
@@ -403,14 +425,16 @@
     <span class="s">&#39;userId&#39;</span><span class="p">:</span> <span class="n">userId</span><span class="p">,</span>
     <span class="s">&#39;hostName&#39;</span><span class="p">:</span> <span class="n">hostName</span><span class="p">,</span>
   <span class="p">}</span>
+  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;doUpload: miscMap: &#39;</span><span class="p">,</span> <span class="n">miscMap</span>
 
   <span class="c"># Create countMap</span>
   <span class="n">countMap</span> <span class="o">=</span> <span class="p">{}</span>
   <span class="k">for</span> <span class="n">nm</span> <span class="ow">in</span> <span class="n">requireNames</span> <span class="o">+</span> <span class="n">optionNames</span><span class="p">:</span>
     <span class="n">count</span> <span class="o">=</span> <span class="n">findNumFiles</span><span class="p">(</span> <span class="n">nm</span><span class="p">,</span> <span class="n">absTopDir</span><span class="p">)</span>
     <span class="n">countMap</span><span class="p">[</span><span class="n">nm</span><span class="p">]</span> <span class="o">=</span> <span class="n">count</span>
-    <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">5</span><span class="p">:</span>
-      <span class="k">print</span> <span class="s">&#39;wrapUpload: tag: </span><span class="si">%s</span><span class="s">  total count: </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">nm</span><span class="p">,</span> <span class="n">count</span><span class="p">,)</span>
+    <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span>
+      <span class="k">print</span> <span class="s">&#39;doUpload: nm: </span><span class="si">%s</span><span class="s">  total count: </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">nm</span><span class="p">,</span> <span class="n">count</span><span class="p">,)</span>
+  <span class="k">if</span> <span class="n">bugLev</span> <span class="o">&gt;=</span> <span class="mi">1</span><span class="p">:</span> <span class="k">print</span> <span class="s">&#39;doUpload: countMap: &#39;</span><span class="p">,</span> <span class="n">countMap</span>
 
   <span class="n">relDirs</span> <span class="o">=</span> <span class="p">[]</span>           <span class="c"># parallel: list of dirs we archive</span>
   <span class="n">dirMaps</span> <span class="o">=</span> <span class="p">[]</span>           <span class="c"># parallel: list of dir info maps</span>
@@ -475,10 +499,15 @@
 
   <span class="c"># Print statistics</span>
   <span class="n">msg</span> <span class="o">=</span> <span class="s">&#39;wrapUpload: file summary:</span><span class="se">\n</span><span class="s">&#39;</span>
+  <span class="n">msg</span> <span class="o">+=</span> <span class="s">&#39;  total num kept dirs: </span><span class="si">%d</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">numKeptDir</span><span class="p">,)</span>
   <span class="k">for</span> <span class="n">nm</span> <span class="ow">in</span> <span class="n">requireNames</span><span class="p">:</span>
     <span class="n">totNum</span> <span class="o">=</span> <span class="n">countMap</span><span class="p">[</span><span class="n">nm</span><span class="p">]</span>
-    <span class="n">msg</span> <span class="o">+=</span> <span class="s">&#39;  Total num </span><span class="si">%-12s</span><span class="s"> files found: </span><span class="si">%4d</span><span class="s">    Kept: </span><span class="si">%4d</span><span class="s">  Omitted: </span><span class="si">%4d</span><span class="se">\n</span><span class="s">&#39;</span> \
-      <span class="o">%</span> <span class="p">(</span><span class="n">nm</span><span class="p">,</span> <span class="n">totNum</span><span class="p">,</span> <span class="n">numKeptDir</span><span class="p">,</span> <span class="n">totNum</span> <span class="o">-</span> <span class="n">numKeptDir</span><span class="p">,)</span>
+    <span class="n">omitted</span> <span class="o">=</span> <span class="n">totNum</span> <span class="o">-</span> <span class="n">numKeptDir</span>
+    <span class="c"># The omitted can be neg if num metadata is 1 but</span>
+    <span class="c"># is metadataForce, applied to all dirs.</span>
+    <span class="k">if</span> <span class="n">omitted</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">:</span> <span class="n">omitted</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">msg</span> <span class="o">+=</span> <span class="s">&#39;  Total num </span><span class="si">%-12s</span><span class="s"> files found: </span><span class="si">%4d</span><span class="s">    Omitted: </span><span class="si">%4d</span><span class="se">\n</span><span class="s">&#39;</span> \
+      <span class="o">%</span> <span class="p">(</span><span class="n">nm</span><span class="p">,</span> <span class="n">totNum</span><span class="p">,</span> <span class="n">omitted</span><span class="p">,)</span>
   <span class="n">logit</span><span class="p">(</span> <span class="n">msg</span><span class="p">)</span>
 
   <span class="c"># Coord with fillDbVasp.py fillTable</span>
@@ -508,8 +537,8 @@
   <span class="n">fBase</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span> <span class="n">digestDir</span><span class="p">,</span> <span class="n">uui</span><span class="p">)</span>
 
   <span class="n">overFile</span> <span class="o">=</span> <span class="n">fBase</span> <span class="o">+</span> <span class="s">&#39;.json&#39;</span>
-  <span class="n">tarFile</span> <span class="o">=</span> <span class="n">fBase</span> <span class="o">+</span> <span class="s">&#39;.tgz&#39;</span> 
-  <span class="n">flagFile</span> <span class="o">=</span> <span class="n">fBase</span> <span class="o">+</span> <span class="s">&#39;.flag&#39;</span> 
+  <span class="n">tarFile</span> <span class="o">=</span> <span class="n">fBase</span> <span class="o">+</span> <span class="s">&#39;.tgz&#39;</span>
+  <span class="n">flagFile</span> <span class="o">=</span> <span class="n">fBase</span> <span class="o">+</span> <span class="s">&#39;.zzflag&#39;</span>
 
   <span class="c"># Write JSON to overFile</span>
   <span class="k">with</span> <span class="nb">open</span><span class="p">(</span> <span class="n">overFile</span><span class="p">,</span> <span class="s">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">fout</span><span class="p">:</span>
@@ -578,7 +607,7 @@
 <span class="sd">    the relative paths of those directories</span>
 <span class="sd">    to be kept.  If specified,</span>
 <span class="sd">    ``keepList`` must not be specified.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * omitPatterns (str[]):</span>
 <span class="sd">    List of regular expressions matching</span>
 <span class="sd">    the relative paths of those directories</span>
@@ -586,9 +615,9 @@
 <span class="sd">    ``keepList`` must not be specified.</span>
 
 <span class="sd">  * absTopDir (str): Absolute path of the original top of dir tree to upload.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * relPath (str): Relative path so far, somewhere below absTopDir.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * metadataForce (map):</span>
 <span class="sd">    Metadata map to be forced on all.</span>
 <span class="sd">    If specified, the metadata files found</span>
@@ -719,7 +748,7 @@
 <span class="sd">    List of absolute paths of dirs to archive.</span>
 
 <span class="sd">  * absTopDir (str): Absolute path of the original top of dir tree to upload.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * metadataForce (map):</span>
 <span class="sd">    Metadata map to be forced on all.</span>
 <span class="sd">    If specified, the metadata files found</span>
@@ -791,7 +820,7 @@
 <span class="sd">  * absTopDir (str): Absolute path of the original top of dir tree to upload.</span>
 
 <span class="sd">  * relPath (str): Relative path so far, somewhere below absTopDir.</span>
-<span class="sd">        </span>
+
 <span class="sd">  * metadataForce (map):</span>
 <span class="sd">    Metadata map to be forced on all.</span>
 <span class="sd">    If specified, the metadata files found</span>
@@ -949,7 +978,7 @@
 <div class="viewcode-block" id="getStatInfos"><a class="viewcode-back" href="../../wrapUpload.html#nrelmat.wrapUpload.getStatInfos">[docs]</a><span class="k">def</span> <span class="nf">getStatInfos</span><span class="p">(</span> <span class="n">bugLev</span><span class="p">,</span> <span class="n">fname</span><span class="p">,</span> <span class="n">statInfos</span><span class="p">):</span>
   <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">  Recursive: creates a list of statInfoMaps for an entire tree.</span>
-<span class="sd">  </span>
+
 <span class="sd">  Appends a map of fileName -&gt; os.stat()</span>
 <span class="sd">  to the statInfos list, and recurses on subdirs.</span>
 
@@ -1087,7 +1116,7 @@
 <div class="viewcode-block" id="unused_extractPotcar"><a class="viewcode-back" href="../../wrapUpload.html#nrelmat.wrapUpload.unused_extractPotcar">[docs]</a><span class="k">def</span> <span class="nf">unused_extractPotcar</span><span class="p">(</span> <span class="n">fname</span><span class="p">):</span>
   <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">  (No longer used): Reads and saves the header sections from a POTCAR file.</span>
-<span class="sd">  </span>
+
 <span class="sd">  Saves every section starting with &#39;PAW_PBE&#39; to the following</span>
 <span class="sd">  line &#39;Description&#39;.</span>
 
@@ -1135,7 +1164,7 @@
 <div class="viewcode-block" id="parseMetadata"><a class="viewcode-back" href="../../wrapUpload.html#nrelmat.wrapUpload.parseMetadata">[docs]</a><span class="k">def</span> <span class="nf">parseMetadata</span><span class="p">(</span> <span class="n">fpath</span><span class="p">):</span>
   <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">  Parses a metadata file and returns a corresponding map.</span>
-<span class="sd">  </span>
+
 <span class="sd">  **Parameters**:</span>
 
 <span class="sd">  * fpath (str): Name of the input metadata file.</span>
@@ -1177,7 +1206,7 @@
 
   <span class="n">metaMap</span> <span class="o">=</span> <span class="p">{}</span>
   <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
-    <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;invalid metadata.  file: </span><span class="se">\&quot;</span><span class="si">%s</span><span class="se">\&quot;</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="n">fpath</span><span class="p">,))</span>
+    <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;invalid metadata.  file: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span> <span class="o">%</span> <span class="p">(</span> <span class="n">fpath</span><span class="p">,))</span>
 
   <span class="n">iline</span> <span class="o">=</span> <span class="mi">0</span>
   <span class="k">while</span> <span class="n">iline</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">lines</span><span class="p">):</span>
@@ -1187,14 +1216,16 @@
     <span class="k">else</span><span class="p">:</span>
       <span class="n">mat</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">r&#39;^:(\w+):(.*)$&#39;</span><span class="p">,</span> <span class="n">line</span><span class="p">)</span>
       <span class="k">if</span> <span class="ow">not</span> <span class="n">mat</span><span class="p">:</span>
-        <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;invalid metadata.  approx iline: </span><span class="si">%d</span><span class="s">  file: </span><span class="se">\&quot;</span><span class="si">%s</span><span class="se">\&quot;</span><span class="s">&#39;</span> \
-          <span class="o">%</span> <span class="p">(</span><span class="n">iline</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,))</span>
+        <span class="n">throwerr</span><span class="p">((</span><span class="s">&#39;invalid metadata.&#39;</span>
+          <span class="o">+</span> <span class="s">&#39;  file: &quot;</span><span class="si">%s</span><span class="s">&quot;  approx iline: </span><span class="si">%d</span><span class="s">  line: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span><span class="p">)</span>
+          <span class="o">%</span> <span class="p">(</span><span class="n">fpath</span><span class="p">,</span> <span class="n">iline</span><span class="p">,</span> <span class="n">line</span><span class="p">,))</span>
       <span class="n">field</span> <span class="o">=</span> <span class="n">mat</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
       <span class="n">value</span> <span class="o">=</span> <span class="n">mat</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span>        <span class="c"># init value</span>
 
       <span class="k">if</span> <span class="n">metaMap</span><span class="o">.</span><span class="n">has_key</span><span class="p">(</span><span class="n">field</span><span class="p">):</span>
-        <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;multiple spec of field: &quot;</span><span class="si">%s</span><span class="s">&quot;  file: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span> \
-          <span class="o">%</span> <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,))</span>
+        <span class="n">throwerr</span><span class="p">((</span><span class="s">&#39;multiple spec of field: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span>
+          <span class="o">+</span> <span class="s">&#39;  file: &quot;</span><span class="si">%s</span><span class="s">&quot;  approx iline: </span><span class="si">%d</span><span class="s">  line: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span><span class="p">)</span>
+          <span class="o">%</span> <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,</span> <span class="n">iline</span><span class="p">,</span> <span class="n">line</span><span class="p">,))</span>
 
       <span class="k">if</span> <span class="n">field</span> <span class="ow">in</span> <span class="p">[</span><span class="n">parentsTag</span><span class="p">,</span> <span class="n">publicationsTag</span><span class="p">,</span> <span class="n">standardsTag</span><span class="p">,</span> <span class="n">keywordsTag</span><span class="p">]:</span>
         <span class="c"># Strip before we test for trailing comma below</span>
@@ -1221,35 +1252,39 @@
         <span class="k">if</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s">r&#39;[^-a-zA-Z]&#39;</span><span class="p">,</span> <span class="n">value</span><span class="p">)</span> \
           <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^[A-Z]$&#39;</span><span class="p">,</span> <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> \
           <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^[a-zA-Z]$&#39;</span><span class="p">,</span> <span class="n">value</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])):</span>
-          <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;invalid name: &quot;</span><span class="si">%s</span><span class="s">&quot;  file: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,))</span>
+          <span class="n">throwerr</span><span class="p">((</span><span class="s">&#39;invalid name: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span>
+            <span class="o">+</span> <span class="s">&#39;  file: &quot;</span><span class="si">%s</span><span class="s">&quot;  approx iline: </span><span class="si">%d</span><span class="s">  line: &quot;</span><span class="si">%s</span><span class="s">&quot;&#39;</span><span class="p">)</span>
+            <span class="o">%</span> <span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,</span> <span class="n">iline</span><span class="p">,</span> <span class="n">line</span><span class="p">,))</span>
         <span class="n">metaMap</span><span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="n">value</span>
 
       <span class="k">elif</span> <span class="n">field</span> <span class="ow">in</span> <span class="p">[</span><span class="n">parentsTag</span><span class="p">,</span> <span class="n">publicationsTag</span><span class="p">,</span> <span class="n">standardsTag</span><span class="p">,</span> <span class="n">keywordsTag</span><span class="p">]:</span>
         <span class="c"># Convert value to list of keywords.</span>
         <span class="c"># Insure keywords don&#39;t contain illegal chars.</span>
         <span class="n">vals</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">toks</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span>
-        <span class="k">for</span> <span class="n">tok</span> <span class="ow">in</span> <span class="n">toks</span><span class="p">:</span>
-          <span class="n">tok</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
-          <span class="n">errMsg</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
-          <span class="k">if</span> <span class="n">field</span> <span class="o">==</span> <span class="n">parentsTag</span><span class="p">:</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tok</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">128</span> <span class="ow">or</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s">r&#39;[^a-f0-9]&#39;</span><span class="p">,</span> <span class="n">tok</span><span class="p">):</span>
-              <span class="n">errMsg</span> <span class="o">+=</span> <span class="s">&#39;Invalid parent (must be 128 chars).</span><span class="se">\n</span><span class="s">&#39;</span>
-          <span class="k">if</span> <span class="n">field</span> <span class="o">==</span> <span class="n">publicationsTag</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;http&#39;</span><span class="p">):</span>
-              <span class="n">errMsg</span> <span class="o">+=</span> <span class="s">&#39;Specify DOI without the initial http://</span><span class="se">\n</span><span class="s">&#39;</span>
-          <span class="k">if</span> <span class="n">field</span> <span class="ow">in</span> <span class="p">[</span><span class="n">standardsTag</span><span class="p">,</span> <span class="n">keywordsTag</span><span class="p">]:</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tok</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span>  \
-              <span class="ow">or</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s">r&#39;[^-a-zA-Z0-9]&#39;</span><span class="p">,</span> <span class="n">tok</span><span class="p">)</span> \
-              <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^[a-zA-Z]$&#39;</span><span class="p">,</span> <span class="n">tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> \
-              <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^[a-zA-Z0-9]$&#39;</span><span class="p">,</span> <span class="n">tok</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])):</span>
-              <span class="n">errMsg</span> <span class="o">+=</span> <span class="s">&#39;Invalid keyword.</span><span class="se">\n</span><span class="s">&#39;</span>
-          <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">errMsg</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="n">errMsg</span> <span class="o">+=</span> <span class="s">&#39;  Invalid item: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tok</span><span class="p">,)</span> \
-              <span class="o">+</span> <span class="s">&#39;  Containing value: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">value</span><span class="p">,)</span> \
-              <span class="o">+</span> <span class="s">&#39;  file: </span><span class="si">%s</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">fpath</span><span class="p">,)</span>
-            <span class="n">throwerr</span><span class="p">(</span> <span class="n">errMsg</span><span class="p">)</span>
-          <span class="n">vals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">tok</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span> <span class="n">value</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+          <span class="n">toks</span> <span class="o">=</span> <span class="n">value</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s">&#39;,&#39;</span><span class="p">)</span>
+          <span class="k">for</span> <span class="n">tok</span> <span class="ow">in</span> <span class="n">toks</span><span class="p">:</span>
+            <span class="n">tok</span> <span class="o">=</span> <span class="n">tok</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span>
+            <span class="n">errMsg</span> <span class="o">=</span> <span class="s">&#39;&#39;</span>
+            <span class="k">if</span> <span class="n">field</span> <span class="o">==</span> <span class="n">parentsTag</span><span class="p">:</span>
+              <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tok</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">128</span> <span class="ow">or</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s">r&#39;[^a-f0-9]&#39;</span><span class="p">,</span> <span class="n">tok</span><span class="p">):</span>
+                <span class="n">errMsg</span> <span class="o">+=</span> <span class="s">&#39;Invalid parent (must be 128 chars).</span><span class="se">\n</span><span class="s">&#39;</span>
+            <span class="k">if</span> <span class="n">field</span> <span class="o">==</span> <span class="n">publicationsTag</span><span class="p">:</span>
+              <span class="k">if</span> <span class="n">field</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s">&#39;http&#39;</span><span class="p">):</span>
+                <span class="n">errMsg</span> <span class="o">+=</span> <span class="s">&#39;Specify DOI without the initial http://</span><span class="se">\n</span><span class="s">&#39;</span>
+            <span class="k">if</span> <span class="n">field</span> <span class="ow">in</span> <span class="p">[</span><span class="n">standardsTag</span><span class="p">,</span> <span class="n">keywordsTag</span><span class="p">]:</span>
+              <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">tok</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">1</span>  \
+                <span class="ow">or</span> <span class="n">re</span><span class="o">.</span><span class="n">search</span><span class="p">(</span><span class="s">r&#39;[^-a-zA-Z0-9]&#39;</span><span class="p">,</span> <span class="n">tok</span><span class="p">)</span> \
+                <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^[a-zA-Z]$&#39;</span><span class="p">,</span> <span class="n">tok</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span> \
+                <span class="ow">or</span> <span class="p">(</span><span class="ow">not</span> <span class="n">re</span><span class="o">.</span><span class="n">match</span><span class="p">(</span><span class="s">&#39;^[a-zA-Z0-9]$&#39;</span><span class="p">,</span> <span class="n">tok</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">])):</span>
+                <span class="n">errMsg</span> <span class="o">+=</span> <span class="s">&#39;Invalid keyword: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tok</span><span class="p">,)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">errMsg</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+              <span class="n">errMsg</span> <span class="o">+=</span> <span class="s">&#39;  Invalid item: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">tok</span><span class="p">,)</span> \
+                <span class="o">+</span> <span class="s">&#39;  Containing value: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">value</span><span class="p">,)</span> \
+                <span class="o">+</span> <span class="s">&#39;  file: &quot;</span><span class="si">%s</span><span class="s">&quot;  approx iline: </span><span class="si">%d</span><span class="s">  line: &quot;</span><span class="si">%s</span><span class="s">&quot;</span><span class="se">\n</span><span class="s">&#39;</span> \
+                <span class="o">%</span> <span class="p">(</span><span class="n">fpath</span><span class="p">,</span> <span class="n">iline</span><span class="p">,</span> <span class="n">line</span><span class="p">,)</span>
+              <span class="n">throwerr</span><span class="p">(</span> <span class="n">errMsg</span><span class="p">)</span>
+            <span class="n">vals</span><span class="o">.</span><span class="n">append</span><span class="p">(</span> <span class="n">tok</span><span class="p">)</span>
         <span class="n">metaMap</span><span class="p">[</span><span class="n">field</span><span class="p">]</span> <span class="o">=</span> <span class="n">vals</span>         <span class="c"># set list</span>
 
       <span class="k">elif</span> <span class="n">field</span> <span class="o">==</span> <span class="n">notesTag</span><span class="p">:</span>
@@ -1260,7 +1295,7 @@
           <span class="o">%</span> <span class="p">(</span><span class="n">field</span><span class="p">,</span> <span class="n">iline</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,))</span>
 
   <span class="k">for</span> <span class="n">nm</span> <span class="ow">in</span> <span class="n">requiredFields</span><span class="p">:</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">metaMap</span><span class="o">.</span><span class="n">has_key</span><span class="p">(</span><span class="n">nm</span><span class="p">):</span> 
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">metaMap</span><span class="o">.</span><span class="n">has_key</span><span class="p">(</span><span class="n">nm</span><span class="p">):</span>
       <span class="n">throwerr</span><span class="p">(</span><span class="s">&#39;missing field: </span><span class="se">\&quot;</span><span class="si">%s</span><span class="se">\&quot;</span><span class="s"> in file: </span><span class="se">\&quot;</span><span class="si">%s</span><span class="se">\&quot;</span><span class="s">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">nm</span><span class="p">,</span> <span class="n">fpath</span><span class="p">,))</span>
 
   <span class="n">legalStandards</span> <span class="o">=</span> <span class="p">[</span>
@@ -1285,7 +1320,7 @@
 <div class="viewcode-block" id="checkFileFull"><a class="viewcode-back" href="../../wrapUpload.html#nrelmat.wrapUpload.checkFileFull">[docs]</a><span class="k">def</span> <span class="nf">checkFileFull</span><span class="p">(</span> <span class="n">fname</span><span class="p">):</span>
   <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">  Insures that fname exists and has length &gt; 0.</span>
-<span class="sd">  </span>
+
 <span class="sd">  **Parameters**:</span>
 
 <span class="sd">  * fname (str): Name of the input file.</span>
@@ -1308,7 +1343,7 @@
 <div class="viewcode-block" id="checkFile"><a class="viewcode-back" href="../../wrapUpload.html#nrelmat.wrapUpload.checkFile">[docs]</a><span class="k">def</span> <span class="nf">checkFile</span><span class="p">(</span> <span class="n">fname</span><span class="p">):</span>
   <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">  Insures that fname exists.  It may have length == 0.</span>
-<span class="sd">  </span>
+
 <span class="sd">  **Parameters**:</span>
 
 <span class="sd">  * fname (str): Name of the input file.</span>
@@ -1334,7 +1369,7 @@
 <div class="viewcode-block" id="runSubprocess"><a class="viewcode-back" href="../../wrapUpload.html#nrelmat.wrapUpload.runSubprocess">[docs]</a><span class="k">def</span> <span class="nf">runSubprocess</span><span class="p">(</span> <span class="n">bugLev</span><span class="p">,</span> <span class="n">wkDir</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">showStdout</span><span class="p">):</span>
   <span class="sd">&#39;&#39;&#39;</span>
 <span class="sd">  Calls the executable indicated by args and waits for completion.</span>
-<span class="sd">  </span>
+
 <span class="sd">  **Parameters**:</span>
 
 <span class="sd">  * bugLev (int): Debug level.  Normally 0.</span>
@@ -1595,7 +1630,7 @@
 <span class="sd">  **Returns**</span>
 
 <span class="sd">  * (Never returns)</span>
-<span class="sd">  </span>
+
 <span class="sd">  **Raises**</span>
 
 <span class="sd">  * Exception</span>
