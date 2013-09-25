@@ -27,6 +27,7 @@ import wrapUpload
 #====================================================================
 
 vasprunName = 'vasprun.xml'
+outcarName = 'OUTCAR'
 
 #====================================================================
 
@@ -537,6 +538,7 @@ def fillTable(
   countMap = overMap['countMap']
   envMap = overMap['envMap']
   statInfos = overMap['statInfos']
+  readType = overMap['readType']
   topDir = overMap['topDir']
   numKeptDir = overMap['numKeptDir']         # == len( relDirs)
   relDirs = overMap['relDirs']               # parallel array
@@ -576,6 +578,7 @@ def fillTable(
       fillRow(
         bugLev,
         metadataForce,
+        readType,
         archDir,
         topDir,
         relDirs[ii],            # parallel array
@@ -629,6 +632,7 @@ def fillTable(
 def fillRow(
   bugLev,
   metadataForce,
+  readType,
   archDir,
   topDir,
   relDir,
@@ -646,6 +650,8 @@ def fillRow(
   * bugLev (int): Debug level.  Normally 0.
   * metadataForce (map): If not None, force this to be the metadata
     map for all subDirs.
+  * readType (str): If 'outcar', read the OUTCAR file.
+    Else if 'xml', read the vasprun.xml file.
   * archDir (str): Input directory tree.
   * topDir (str): original top dir during upload.
   * relDir (str): sub directory under topDir (during wrapUpload.py) and
@@ -703,7 +709,11 @@ def fillRow(
   if bugLev >= 5:
     wrapUpload.printMap('fillRow: metaMap', metaMap, 100)
 
-  vname = os.path.join( subPath, vasprunName)
+  # Get the hash digest of vasprun.xml or OUTCAR
+  if readType == 'outcar': tname = outcarName
+  elif readType == 'xml': tname = vasprunName
+  else: throwerr('invalid readType: %s' % (readType,))
+  vname = os.path.join( subPath, tname)
   hash = hashlib.sha512()
   with open( vname) as fin:
     while True:
@@ -748,7 +758,6 @@ def fillRow(
         throwerr( msg)
 
   # Read and parse vasprun.xml
-  readType = 'xml'
   vaspObj = readVasp.parseDir( bugLev, readType, subPath, -1)  # print = -1
 
   typeNums = getattr( vaspObj, 'typeNums', None)

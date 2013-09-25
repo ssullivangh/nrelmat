@@ -19,6 +19,8 @@
 import datetime, re, sys, traceback, os.path
 import xml.etree.cElementTree as etree
 import numpy as np
+import pylada.vasp        # used for parsing OUTCAR files
+
 
 
 #====================================================================
@@ -51,12 +53,12 @@ def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
   print '  -bugLev    <int>      debug level'
-  print '  -inType    <string>   pylada / xml'
+  print '  -readType  <string>   outcar / xml'
   print '  -inDir     <string>   dir containing input OUTCAR or vasprun.xml'
   print '  -maxLev    <int>      max levels to print for xml'
   print ''
   print 'Examples:'
-  print './readVasp.py -bugLev 5   -inType xml   -inDir tda/testlada.2013.04.15.fe.len.3.20/icsd_044729/icsd_044729.cif/hs-anti-ferro-0/relax_cellshape/0   -maxLev 0'
+  print './readVasp.py -bugLev 5   -readType xml   -inDir tda/testlada.2013.04.15.fe.len.3.20/icsd_044729/icsd_044729.cif/hs-anti-ferro-0/relax_cellshape/0   -maxLev 0'
   sys.exit(1)
 
 #====================================================================
@@ -72,7 +74,7 @@ def main():
   Parameter         Type         Description
   ================  =========    ==============================================
   **-bugLev**       integer      Debug level.  Normally 0.
-  **-inType**       string       If 'pylada', read the OUTCAR file.
+  **-readType**     string       If 'outcar', read the OUTCAR file.
                                  Else if 'xml', read the vasprun.xml file.
   **-inDir**        string       Input directory containing OUTCAR
                                  and/or vasprun.xml.
@@ -81,7 +83,7 @@ def main():
   '''
 
   bugLev = 0
-  inType = None
+  readType = None
   inDir = None
   maxLev = None
 
@@ -91,19 +93,19 @@ def main():
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
     if key == '-bugLev': bugLev = int( val)
-    elif key == '-inType': inType = val
+    elif key == '-readType': readType = val
     elif key == '-inDir': inDir = val
     elif key == '-maxLev': maxLev = int( val)
     else: badparms('unknown key: "%s"' % (key,))
 
   if bugLev == None: badparms('parm not specified: -bugLev')
-  if inType == None: badparms('parm not specified: -inType')
+  if readType == None: badparms('parm not specified: -readType')
   if inDir == None: badparms('parm not specified: -inDir')
   if maxLev == None: badparms('parm not specified: -maxLev')
 
   ##np.set_printoptions( threshold=10000)
 
-  resObj = parseDir( bugLev, inType, inDir, maxLev)
+  resObj = parseDir( bugLev, readType, inDir, maxLev)
 
   print 'main: resObj:\n%s' % (resObj,)
 
@@ -121,7 +123,7 @@ def main():
 
 def parseDir(
   bugLev,
-  inType,
+  readType,
   inDir,
   maxLev):
   '''
@@ -130,7 +132,7 @@ def parseDir(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
-  * inType (str): If 'pylada', read the OUTCAR file.
+  * readType (str): If 'outcar', read the OUTCAR file.
     Else if 'xml', read the vasprun.xml file.
   * inDir (str): Input directory containing OUTCAR
     and/or vasprun.xml.
@@ -149,22 +151,22 @@ def parseDir(
   resObj.excTrace = None
 
   try:
-    if inType == 'pylada':
+    if readType == 'outcar':
       inFile = os.path.join( inDir, 'OUTCAR')
       if not os.path.isfile(inFile):
         throwerr('inFile is not a file: "%s"' % (inFile,))
       parsePylada( bugLev, inFile, resObj)
-    elif inType == 'xml':
+    elif readType == 'xml':
       inFile = os.path.join( inDir, 'vasprun.xml')
       if not os.path.isfile(inFile):
         throwerr('inFile is not a file: "%s"' % (inFile,))
       parseXml( bugLev, inFile, maxLev, resObj)
-    else: throwerr('unknown inType: %s' % (inType,))
+    else: throwerr('unknown readType: %s' % (readType,))
   except Exception, exc:
     resObj.excMsg = repr(exc)
     resObj.excTrace = traceback.format_exc( limit=None)
     print 'readVasp.py.  caught exc: %s' % (resObj.excMsg,)
-    print '  inType:   "%s"' % (inType,)
+    print '  readType:   "%s"' % (readType,)
     print '  inDir:    "%s"' % (inDir,)
     print '===== traceback start ====='
     print resObj.excTrace
@@ -189,8 +191,6 @@ def parsePylada( bugLev, inFile, resObj):
 
   * None
   '''
-
-  import pylada.vasp
 
   ex = pylada.vasp.Extract( inFile)
   if not ex.success: throwerr('file %s is not complete' % (inFile,))

@@ -23,27 +23,6 @@ import shutil, socket, stat, subprocess, sys, time, traceback
 metadataName = 'metadata'
 
 
-# Names of required files
-requireNames = [
-  metadataName,
-  'INCAR',
-  'KPOINTS',
-  'POSCAR',
-  'POTCAR',
-  'OUTCAR',
-  'vasprun.xml',
-]
-
-# Names of optional files
-optionNames = [
-  'pbserr',
-  'pbsout',
-  'pbsscript',
-  'stderr',
-  'stdout',
-  'DOSCAR',
-]
-
 
 # Work and archive subdir of the top level dir.
 digestDirName = 'wrapUpload.archive'
@@ -59,6 +38,7 @@ def badparms( msg):
   print ''
   print '  -bugLev     <int>       Debug level.  Default: 0'
   print ''
+  print '  -readType     <string>  outcar / xml'
   print '  -metadataSpec <string>  Metadata file to be forced on all.'
   print ''
   print '  -requireIcsd  <boolean> no/yes: do we require that the path'
@@ -117,6 +97,9 @@ def main():
                                    Default: None, meaning each archived
                                    dir must contain a metadata file.
 
+  **-readType**     string         If 'outcar', read the OUTCAR files.
+                                   Else if 'xml', read the vasprun.xml files.
+
   **-requireIcsd**    boolean      no/yes: do we require that the path
                                    names of files contain ICSD info.
                                    See notes below.
@@ -174,6 +157,7 @@ def main():
   bugLev = 0
   func = 'upload'
   metadataSpec = None
+  readType = None
   requireIcsd = None
   keepList = None
   keepPatterns = None
@@ -190,6 +174,7 @@ def main():
     if   key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
     elif key == '-metadataSpec': metadataSpec = val
+    elif key == '-readType': readType = val
     elif key == '-requireIcsd': requireIcsd = parseBoolean( val)
     elif key == '-keepList': keepList = val
     elif key == '-keepPatterns': keepPatterns = val.split(',')
@@ -201,6 +186,7 @@ def main():
 
   # func is optional
   # metadataSpec is optional
+  if readType == None: badparms('parm not specified: -readType')
   if requireIcsd == None: badparms('missing parameter: -requireIcsd')
   # keepList is optional
   # keepPatterns is optional
@@ -214,6 +200,7 @@ def main():
 
   print 'wrapUpload: func: %s' % (func,)
   print 'wrapUpload: metadataSpec: %s' % (metadataSpec,)
+  print 'wrapUpload: readType: %s' % (readType,)
   print 'wrapUpload: keepList: %s' % (keepList,)
   print 'wrapUpload: keepPatterns: %s' % (keepPatterns,)
   print 'wrapUpload: omitPatterns: %s' % (omitPatterns,)
@@ -222,8 +209,36 @@ def main():
   print 'wrapUpload: workDir: %s' % (workDir,)
   print 'wrapUpload: serverInfo: %s' % (serverInfo,)
 
+
+  # Names of required files
+  requireNames = [
+    metadataName,
+    'INCAR',
+    'KPOINTS',
+    'POSCAR',
+    'POTCAR',
+  ]
+
+  # Names of optional files
+  optionNames = [
+    'pbserr',
+    'pbsout',
+    'pbsscript',
+    'stderr',
+    'stdout',
+    'DOSCAR',
+  ]
+  if readType == 'xml':
+    requireNames.append('vasprun.xml')
+    optionNames.append('OUTCAR')
+  elif readType == 'outcar':
+    requireNames.append('OUTCAR')
+    optionNames.append('vasprun.xml')
+  else: badparms('invalid readType: %s' % (readType,))
+
   if func == 'upload':
-    doUpload( bugLev, metadataSpec, requireIcsd,
+    doUpload( bugLev, metadataSpec, readType,
+      requireNames, optionNames, requireIcsd,
       keepList, keepPatterns, omitPatterns,
       topDir, workDir, serverInfo)
 
@@ -240,6 +255,9 @@ def main():
 def doUpload(
   bugLev,
   metadataSpec,
+  readType,
+  requireNames,
+  optionNames,
   requireIcsd,                # require icsd info in absTopDir string
   keepList,
   keepPatterns,
@@ -270,6 +288,13 @@ def doUpload(
     is used instead.
     Default: None, meaning each archived
     dir must contain a metadata file.
+
+  * readType (str): If 'outcar', read the OUTCAR file.
+    Else if 'xml', read the vasprun.xml file.
+
+  * requireNames (str[]): names of required files.
+
+  * optionNames (str[]): names of optional files.
 
   * requireIcsd (boolean): if True, the absTopDir string must
     contain ICSD info that :func:`getIcsdMap` can extract.
@@ -396,6 +421,8 @@ def doUpload(
     # using the keepAbsPaths list.
     iterateDirs(
       bugLev,
+      requireNames,
+      optionNames,
       keepAbsPaths,
       absTopDir,
       metadataForce,              # metadata to force on all dirs
@@ -412,6 +439,8 @@ def doUpload(
     # starting at absTopDir.
     searchDirs(
       bugLev,
+      requireNames,
+      optionNames,
       keepPatterns,
       omitPatterns,
       absTopDir,
@@ -466,6 +495,7 @@ def doUpload(
     'countMap': countMap,
     'envMap': envMap,
     'statInfos': statInfos,
+    'readType': readType,
     'topDir': absTopDir,
     'numKeptDir': numKeptDir,
     'relDirs': relDirs,
@@ -533,6 +563,8 @@ def doUpload(
 
 def searchDirs(
   bugLev,
+  requireNames,
+  optionNames,
   keepPatterns,
   omitPatterns,
   absTopDir,
@@ -551,6 +583,10 @@ def searchDirs(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+
+  * requireNames (str[]): names of required files.
+
+  * optionNames (str[]): names of optional files.
 
   * keepPatterns (str[]):
     List of regular expressions matching
@@ -643,8 +679,8 @@ def searchDirs(
       % (keepIt, omitIt, hasMetadata,)
 
   if keepIt and (not omitIt) and hasMetadata:
-    processDir( bugLev, absTopDir, relPath,
-      metadataForce, requireIcsd, miscMap,
+    processDir( bugLev, requireNames, optionNames,
+      absTopDir, relPath, metadataForce, requireIcsd, miscMap,
       relDirs, dirMaps, icsdMaps, relFiles)
 
   # Recurse to subdirs
@@ -656,6 +692,8 @@ def searchDirs(
       if os.path.isdir( os.path.join( absTopDir, subPath)):
         searchDirs(
           bugLev,
+          requireNames,
+          optionNames,
           keepPatterns,
           omitPatterns,
           absTopDir,
@@ -677,6 +715,8 @@ def searchDirs(
 
 def iterateDirs(
   bugLev,
+  requireNames,
+  optionNames,
   keepAbsPaths,
   absTopDir,
   metadataForce,              # metadata to force on all dirs
@@ -693,6 +733,10 @@ def iterateDirs(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+
+  * requireNames (str[]): names of required files.
+
+  * optionNames (str[]): names of optional files.
 
   * keepAbsPaths (str[]):
     List of absolute paths of dirs to archive.
@@ -739,8 +783,8 @@ def iterateDirs(
     if bugLev >= 5:
       print 'iterateDirs: relPath: %s' % (relPath,)
 
-    processDir( bugLev, absTopDir, relPath,
-      metadataForce, requireIcsd, miscMap,
+    processDir( bugLev, requireNames, optionNames,
+      absTopDir, relPath, metadataForce, requireIcsd, miscMap,
       relDirs, dirMaps, icsdMaps, relFiles)
 
 
@@ -750,6 +794,8 @@ def iterateDirs(
 
 def processDir(
   bugLev,
+  requireNames,
+  optionNames,
   absTopDir,
   relPath,                    # relative path so far
   metadataForce,              # metadata to force on all dirs
@@ -766,6 +812,10 @@ def processDir(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+
+  * requireNames (str[]): names of required files.
+
+  * optionNames (str[]): names of optional files.
 
   * absTopDir (str): Absolute path of the original top of dir tree to upload.
 
