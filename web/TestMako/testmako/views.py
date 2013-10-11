@@ -14,6 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with NREL MatDB.  If not, see <http://www.gnu.org/licenses/>.
 
+import gzip   # preload gzip since tarfile loads it dynamically
 import json, os, re, StringIO, sys, tarfile, traceback
 import psycopg2
 from pyramid.view import view_config
