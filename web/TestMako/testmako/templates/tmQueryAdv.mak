@@ -13,9 +13,6 @@ function setInitialFocus() {
 </%block>
 
 
-<%block name="blkTitle"> Advanced Query </%block>
-
-
 <!-- tmQueryAdv.body: start -->
 
   <div id="form">

@@ -38,6 +38,7 @@ def badparms( msg):
   print '  -bugLev      <int>      Debug level'
   print '  -func        <string>   CreateTableModel / createTableContrib'
   print '                          / fillTable'
+  print '  -useCommit   <boolean>  If true, we commit changes to the DB.'
   print '  -deleteTable <boolean>  If func is create*, using -deleteTable true'
   print '                          allows deletion of old table first.'
   print '  -archDir     <string>   Input dir tree'
@@ -63,6 +64,7 @@ def main():
   ================  =========    ==============================================
   **-bugLev**       integer      Debug level.  Normally 0.
   **-func**         string       Function.  See below.
+  **-useCommit**    boolean      If true, we commit changes to the DB.
   **-deleteTable**  boolean      If func is create*, using -deleteTable true
                                  allows deletion of old table first.
   **-archDir**      string       Input dir tree.
@@ -115,12 +117,13 @@ def main():
 
   '''
 
-  bugLev   = None
-  func     = None
+  bugLev      = None
+  func        = None
+  useCommit   = None
   deleteTable = None
-  archDir  = None
-  wrapId   = None
-  inSpec   = None
+  archDir     = None
+  wrapId      = None
+  inSpec      = None
 
   if len(sys.argv) % 2 != 1:
     badparms('Parms must be key/value pairs')
@@ -129,6 +132,10 @@ def main():
     val = sys.argv[iarg+1]
     if   key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
+    elif key == '-useCommit':
+      if val == 'false': useCommit = False
+      elif val == 'true': useCommit = True
+      else: badparms('invalid -useCommit arg')
     elif key == '-deleteTable':
       if val == 'false': deleteTable = False
       elif val == 'true': deleteTable = True
@@ -140,6 +147,7 @@ def main():
 
   if bugLev == None: badparms('parm not specified: -bugLev')
   if func == None: badparms('parm not specified: -func')
+  if useCommit == None: badparms('parm not specified: -useCommit')
   if deleteTable == None: badparms('parm not specified: -deleteTable')
   if archDir == None: badparms('parm not specified: -archDir')
   if wrapId == None: badparms('parm not specified: -wrapId')
@@ -159,7 +167,8 @@ def main():
 
   else: wrapIdUse = wrapId
 
-  fillDbVasp( bugLev, func, deleteTable, archDir, wrapIdUse, inSpec)
+  fillDbVasp( bugLev, func, useCommit, deleteTable,
+    archDir, wrapIdUse, inSpec)
 
 
 #====================================================================
@@ -169,6 +178,7 @@ def main():
 def fillDbVasp(
   bugLev,
   func,
+  useCommit,
   deleteTable,
   archDir,
   wrapId,
@@ -188,6 +198,7 @@ def fillDbVasp(
       * ``'fillTable'``
         Read a dir tree and add rows to the database table "model".
 
+  * useCommit (boolean): If True, we commit changes to the DB.
   * deleteTable (boolean): If True and func is create\*,
     delete the specified table before creating it.
   * archDir (str): Input directory tree.
@@ -204,6 +215,7 @@ def fillDbVasp(
 
   if bugLev >= 1:
     print 'fillDbVasp: func: %s' % (func,)
+    print 'fillDbVasp: useCommit: %s' % (useCommit,)
     print 'fillDbVasp: deleteTable: %s' % (deleteTable,)
     print 'fillDbVasp: archDir: %s' % (archDir,)
     print 'fillDbVasp: wrapId: %s' % (wrapId,)
@@ -263,11 +275,13 @@ def fillDbVasp(
     cursor.execute('set search_path to %s', (dbschema,))
 
     if func == 'createTableModel':
-      createTableModel( bugLev, deleteTable, conn, cursor, dbtablemodel)
+      createTableModel( bugLev, useCommit, deleteTable,
+        conn, cursor, dbtablemodel)
     elif func == 'createTableContrib':
-      createTableContrib( bugLev, deleteTable, conn, cursor, dbtablecontrib)
+      createTableContrib( bugLev, useCommit, deleteTable,
+        conn, cursor, dbtablecontrib)
     elif func == 'fillTable':
-      fillTable( bugLev, archDir, conn, cursor, wrapId,
+      fillTable( bugLev, useCommit, archDir, conn, cursor, wrapId,
         dbtablemodel, dbtablecontrib)
     else: throwerr('unknown func: "%s"' % (func,))
 
@@ -281,6 +295,7 @@ def fillDbVasp(
 
 def createTableModel(
   bugLev,
+  useCommit,
   deleteTable,
   conn,
   cursor,
@@ -291,6 +306,7 @@ def createTableModel(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+  * useCommit (boolean): If True, we commit changes to the DB.
   * deleteTable (boolean): If True, delete the table before creating it.
   * conn (psycopg2.connection): Open DB connection
   * cursor (psycopg2.cursor): Open DB cursor
@@ -303,7 +319,7 @@ def createTableModel(
 
   if deleteTable:
     cursor.execute('DROP TABLE IF EXISTS %s' % (dbtablemodel,))
-    conn.commit()
+    if useCommit: conn.commit()
 
   cursor.execute('''
     CREATE TABLE %s (
@@ -365,18 +381,18 @@ def createTableModel(
       --- initial structure ---
       initialBasisMat         double precision[][],
       initialRecipBasisMat    double precision[][],
-      initialCartesianPosMat  double precision[][],
-      initialDirectPosMat     double precision[][],
+      initialCartPosMat       double precision[][],
+      initialFracPosMat       double precision[][],
 
       --- final structure ---
       finalBasisMat           double precision[][],
       finalRecipBasisMat      double precision[][],
-      finalCartesianPosMat    double precision[][],
-      finalDirectPosMat       double precision[][],
+      finalCartPosMat         double precision[][],
+      finalFracPosMat         double precision[][],
 
       --- final volume and density ---
-      finalVolumeVasp_ang3    double precision,
-      density_g_cm3           double precision,
+      finalVolume_ang3        double precision,
+      finalDensity_g_cm3      double precision,
 
       --- last calc forces ---
       finalForceMat_ev_ang         double precision[][],   -- eV/angstrom
@@ -412,21 +428,21 @@ def createTableModel(
       meta_notes        text      -- metadata: notes
     )
   ''' % (dbtablemodel,))
-  conn.commit()
+  if useCommit: conn.commit()
   print 'fillDbVasp: table \"%s\" created' % (dbtablemodel,)
 
   ixName = '%s_mident_index' % (dbtablemodel,)
   cursor.execute('''
     CREATE INDEX %s ON %s (mident)
   ''' % (ixName, dbtablemodel,))
-  conn.commit()
+  if useCommit: conn.commit()
   print 'fillDbVasp: index \"%s\" created' % (ixName,)
 
   ixName = '%s_icsdnum_index' % (dbtablemodel,)
   cursor.execute('''
     CREATE INDEX %s ON %s (icsdnum)
   ''' % (ixName, dbtablemodel,))
-  conn.commit()
+  if useCommit: conn.commit()
   print 'fillDbVasp: index \"%s\" created' % (ixName,)
 
 
@@ -438,6 +454,7 @@ def createTableModel(
 
 def createTableContrib(
   bugLev,
+  useCommit,
   deleteTable,
   conn,
   cursor,
@@ -448,6 +465,7 @@ def createTableContrib(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+  * useCommit (boolean): If True, we commit changes to the DB.
   * deleteTable (boolean): If True, delete the table before creating it.
   * conn (psycopg2.connection): Open DB connection
   * cursor (psycopg2.cursor): Open DB cursor
@@ -460,7 +478,7 @@ def createTableContrib(
 
   if deleteTable:
     cursor.execute('DROP TABLE IF EXISTS %s' % (dbtablecontrib,))
-    conn.commit()
+    if useCommit: conn.commit()
 
   cursor.execute('''
     CREATE TABLE %s (
@@ -473,7 +491,7 @@ def createTableContrib(
       reldirs      text[]        -- list of relative subdirs
     )
   ''' % (dbtablecontrib,))
-  conn.commit()
+  if useCommit: conn.commit()
 
   print 'fillDbVasp: table \"%s\" created' % (dbtablecontrib,)
 
@@ -485,6 +503,7 @@ def createTableContrib(
 
 def fillTable(
   bugLev,
+  useCommit,
   archDir,
   conn,
   cursor,
@@ -505,6 +524,7 @@ def fillTable(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+  * useCommit (boolean): If True, we commit changes to the DB.
   * archDir (str): Input directory tree.
   * conn (psycopg2.connection): Open DB connection
   * cursor (psycopg2.cursor): Open DB cursor
@@ -570,13 +590,14 @@ def fillTable(
     'delete from ' + dbtablemodel + ' where wrapid = %s',
     (wrapId,)
   )
-  conn.commit()
+  if useCommit: conn.commit()
 
   # Add rows to the model table.
   for ii in range( len( relDirs)):
     try:
       fillRow(
         bugLev,
+        useCommit,
         metadataForce,
         readType,
         archDir,
@@ -622,7 +643,7 @@ def fillTable(
       relDirs,
   ))
   
-  conn.commit()
+  if useCommit: conn.commit()
 
 
 #====================================================================
@@ -631,6 +652,7 @@ def fillTable(
 
 def fillRow(
   bugLev,
+  useCommit,
   metadataForce,
   readType,
   archDir,
@@ -648,6 +670,7 @@ def fillRow(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+  * useCommit (boolean): If True, we commit changes to the DB.
   * metadataForce (map): If not None, force this to be the metadata
     map for all subDirs.
   * readType (str): If 'outcar', read the OUTCAR file.
@@ -803,14 +826,14 @@ def fillRow(
         atomValences,
         initialBasisMat,
         initialRecipBasisMat,
-        initialCartesianPosMat,
-        initialDirectPosMat,
+        initialCartPosMat,
+        initialFracPosMat,
         finalBasisMat,
         finalRecipBasisMat,
-        finalCartesianPosMat,
-        finalDirectPosMat,
-        finalVolumeVasp_ang3,
-        density_g_cm3,
+        finalCartPosMat,
+        finalFracPosMat,
+        finalVolume_ang3,
+        finalDensity_g_cm3,
         finalForceMat_ev_ang,
         finalStressMat_kbar,
         finalPressure_kbar,
@@ -861,14 +884,14 @@ def fillRow(
       getattr( vaspObj, 'atomValences', None),
       getattr( vaspObj, 'initialBasisMat', None),
       getattr( vaspObj, 'initialRecipBasisMat', None),
-      getattr( vaspObj, 'initialCartesianPosMat', None),
-      getattr( vaspObj, 'initialDirectPosMat', None),
+      getattr( vaspObj, 'initialCartPosMat', None),
+      getattr( vaspObj, 'initialFracPosMat', None),
       getattr( vaspObj, 'finalBasisMat', None),
       getattr( vaspObj, 'finalRecipBasisMat', None),
-      getattr( vaspObj, 'finalCartesianPosMat', None),
-      getattr( vaspObj, 'finalDirectPosMat', None),
-      getattr( vaspObj, 'finalVolumeVasp_ang3', None),
-      getattr( vaspObj, 'density_g_cm3', None),
+      getattr( vaspObj, 'finalCartPosMat', None),
+      getattr( vaspObj, 'finalFracPosMat', None),
+      getattr( vaspObj, 'finalVolume_ang3', None),
+      getattr( vaspObj, 'finalDensity_g_cm3', None),
       getattr( vaspObj, 'finalForceMat_ev_ang', None),
       getattr( vaspObj, 'finalStressMat_kbar', None),
       getattr( vaspObj, 'finalPressure_kbar', None),
@@ -888,7 +911,7 @@ def fillRow(
       metaMap['keywords'],
       metaMap['notes'],
   ))
-  conn.commit()
+  if useCommit: conn.commit()
 
 
 

@@ -33,7 +33,8 @@ from ColumnDesc import ColumnDesc
 
 #====================================================================
 
-# xxxxxxxxxxxxxxxxxxx to do xxxxxxxxxxxxxxxxx
+# xxx
+# To do
 # 
 # Three auth methods:
 #   authSecurity
@@ -48,8 +49,7 @@ from ColumnDesc import ColumnDesc
 # http://docs.pylonsproject.org/projects/pyramid/en/latest/narr/traversal.html
 
 # all xxx, ##
-# merge up
-# xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
 
 
 #====================================================================
@@ -101,7 +101,16 @@ def getModelColDescs():
     ColumnDesc('wrapid',    'wrapId',  '%s', 'Identifier for this upload'),
     ColumnDesc('abspath',   'absPath', '%s', 'absolute file path'),
     ColumnDesc('relpath',   'relPath', '%s', 'relative file path'),
-    ColumnDesc('icsdnum',   'icsdNum', '%d', 'ICSD id'),
+    ColumnDesc('icsdnum',   'icsdId',  '%d', 'ICSD id'),
+
+    # xxx instead use value of final magnetic moment in OUTCAR
+    # (not in non-mag: ispin==1, magmom == 0.
+    # in mag: ispin==2, 
+    #   magnetization (x)
+    #   Want right col of tot line.
+    #
+    # col: spin: on/off
+    # col: M_tot: (\mu<sub>B</sub>)   (blank or 0 if spin off)
 
     ColumnDesc('magtype',   'magType', '%s',
       'mag moment type: hsf=hs-ferro, hsaf=hs-antiferro, nm=non-mag'),
@@ -153,25 +162,25 @@ def getModelColDescs():
       'initial basis matrix'),
     ColumnDesc('initialrecipbasismat', 'initialRecipBasisMat', '[[%g]]',
       'initial reciprocal basis matrix'),
-    ColumnDesc('initialcartesianposmat', 'initialCartesianPosMat', '[[%g]]',
+    ColumnDesc('initialcartposmat', 'initialCartPosMat', '[[%g]]',
       'initial cartesian position matrix'),
-    ColumnDesc('initialdirectposmat', 'initialDirectPosMat', '[[%g]]',
-      'initial direct position matrix'),
+    ColumnDesc('initialfracposmat', 'initialFracPosMat', '[[%g]]',
+      'initial fractional (direct) position matrix'),
 
     #--- final structure ---
     ColumnDesc('finalbasismat', 'finalBasisMat', '[[%g]]',
       'final basis matrix (rows)'),
     ColumnDesc('finalrecipbasismat', 'finalRecipBasisMat', '[[%g]]',
       'final reciprocal basis matrix (rows)'),
-    ColumnDesc('finalcartesianposmat', 'finalCartesianPosMat', '[[%g]]',
+    ColumnDesc('finalcartposmat', 'finalCartPosMat', '[[%g]]',
       'final cartesian position matrix (row per atom, = direct * basis)'),
-    ColumnDesc('finaldirectposmat', 'finalDirectPosMat', '[[%g]]',
-      'final direct position matrix (row per atom, = cartesian * recipBasis)'),
+    ColumnDesc('finalfracposmat', 'finalFracPosMat', '[[%g]]',
+      'final fractional (direct) position matrix'),
 
     #--- final volume and density ---
-    ColumnDesc('finalvolumevasp_ang3', 'finalVolume', '%.4f',
+    ColumnDesc('finalvolume_ang3', 'finalVolume', '%.4f',
       'final cell volume, Angstrom3'),
-    ColumnDesc('density_g_cm3', 'density', '%.4f',
+    ColumnDesc('finaldensity_g_cm3', 'finalDensity', '%.4f',
       'final cell density, g/cm3'),
 
     #--- last calc forces ---
@@ -189,17 +198,17 @@ def getModelColDescs():
     #--- energy, efermi0 ---
     ColumnDesc('energynoentrp', 'finalEnergyWoEntropy', '%.2f',
       'final total energy without entropy'),
-    ColumnDesc('energyperatom', 'energyPerAtom', '%.2f',
-      'final total energy without entropy, per atom in cell'),
-    ColumnDesc('efermi0', 'efermi0', '%.2f',
-      'fermi energy at 0K'),
+    ColumnDesc('energyperatom', 'E<sub>tot</sub> (eV/Atom)', '%.2f',
+      'final total energy without entropy, per atom in cell'), # xxx omit from total
+    ColumnDesc('efermi0', 'E<sub>fermi</sub>', '%.2f',
+      'fermi energy at 0K'), # xxx omit from sum
 
     #--- cbMin, vbMax, bandgap ---
     ColumnDesc('cbmin', 'cbMin', '%.3f',
       'conduction band minimum energy'),
     ColumnDesc('vbmax', 'vbMax', '%.3f',
       'valence band maximum energy'),
-    ColumnDesc('bandgap', 'bandgap', '%.3f',
+    ColumnDesc('bandgap', 'E<sub>g</sub> (eV)', '%.3f',
       'bandgap'),
 
     #--- augmented items ---
@@ -207,9 +216,9 @@ def getModelColDescs():
       'chemical formula'),
     ColumnDesc('chemtext', 'chemText', '%s',
       'chemical formula with spaces'),
-    ColumnDesc('minenergyid', 'minEnergyID', '%d',
+    ColumnDesc('minenergyid', 'minID', '%d',
       'id having min energy for this formula'),
-    ColumnDesc('enthalpy', 'enthalpy', '%.2f',
+    ColumnDesc('enthalpy', '&Delta;H<sub>f</sub> (eV/atom)', '%.2f',
       'final enthalpy, eV/atom'),
 
     #--- metadata ---
@@ -269,8 +278,8 @@ def getIcsdColDescs():
     ColumnDesc('cident',       'id',           '%d', 'MatDB CID'),
     ColumnDesc('chemname',     'chemName',     '%s', 'Chemical name'),
     ColumnDesc('mineralname',  'mineralName',  '%s', 'Mineral name'),
-    ColumnDesc('symgroupname', 'symGroupName', '%s', 'Symmetry group name'),
-    ColumnDesc('symgroupnum',  'symGroupNum',  '%d', 'Symmetry group num'),
+    ColumnDesc('symgroupname', 'SG Name',      '%s', 'Space group name'),
+    ColumnDesc('symgroupnum',  'SG No.',       '%d', 'space group number'),
   ]
 
   return columnDescs
@@ -285,23 +294,40 @@ def getIcsdColDescs():
 # Used by templates/tmBase.py.
 
 def getNavList( request):
-  authedSecure  = security.authenticated_userid( request)
-  navList = [
-    [ 'Home', request.route_url('rtHome')]]
+
+  urlCurrent = request.current_route_url()
+  ix = urlCurrent.find('?')
+  if ix >= 0: urlCurrent = urlCurrent[:ix]   # truncate at '?'
+
+  urlContrib = request.route_url('rtContrib', queryRest='')
+  urlHome = request.route_url('rtHome')
+  urlLogin = request.route_url('rtLogin')
+  urlLogout = request.route_url('rtLogout')
+  urlQueryStd = request.route_url('rtQueryStd', queryRest='')
+
+  authedSecure = security.authenticated_userid( request)
+
+  cssClass = 'navButtonStd'
+  if urlCurrent == urlHome: cssClass = 'navButtonInv'
+  navList = [ [ 'Home', urlHome, cssClass] ]
 
   if authedSecure:
-    navList.append(
-      [ 'Query', request.route_url('rtQueryStd', queryRest='')])
-    ##navList.append(
-    ##  [ 'Advanced Query', request.route_url('rtQueryAdv', queryRest='')])
-    navList.append(
-      [ 'Contributions', request.route_url('rtContrib', queryRest='')])
-    navList.append(
-      [ 'Logout', request.route_url('rtLogout')])
+    cssClass = 'navButtonStd'
+    if urlCurrent == urlQueryStd: cssClass = 'navButtonInv'
+    navList.append( [ 'Query', urlQueryStd, cssClass] )
+
+    cssClass = 'navButtonStd'
+    if urlCurrent == urlContrib: cssClass = 'navButtonInv'
+    navList.append( [ 'Contributions', urlContrib, cssClass] )
+
+    cssClass = 'navButtonStd'
+    if urlCurrent == urlLogout: cssClass = 'navButtonInv'
+    navList.append( [ 'Logout', urlLogout, cssClass] )
 
   else:
-    navList.append(
-      [ 'Login', request.route_url('rtLogin')])
+    cssClass = 'navButtonStd'
+    if urlCurrent == urlLogin: cssClass = 'navButtonInv'
+    navList.append( [ 'Login', urlLogin, cssClass] )
 
   return navList
 
@@ -357,13 +383,14 @@ def vwLogin(request):
     print 'vwLogin: ok: auth_userid: %s' \
       % (security.authenticated_userid( request),)
   return dict(
-    errMsg        = errMsg,
-    url           = request.application_url,
-    userid        = userid,
-    password      = password,
-    authedSecure  = security.authenticated_userid( request),
-    authedSession = request.session.has_key('authedSession'),
-    navList       = getNavList( request),
+    errMsg         = errMsg,
+    url            = request.application_url,
+    userid         = userid,
+    password       = password,
+    authedSecure   = security.authenticated_userid( request),
+    authedSession  = request.session.has_key('authedSession'),
+    subHead        = 'NREL Login',
+    navList        = getNavList( request),
   )
 
 
@@ -402,10 +429,11 @@ def vwHome(request):
       % (security.authenticated_userid( request),)
   errMsg = ''
   return dict(
-    errMsg        = errMsg,
-    authedSecure  = security.authenticated_userid( request),
-    authedSession = request.session.has_key('authedSession'),
-    navList    = getNavList( request),
+    errMsg         = errMsg,
+    authedSecure   = security.authenticated_userid( request),
+    authedSession  = request.session.has_key('authedSession'),
+    subHead        = 'NREL MatDB Home',
+    navList        = getNavList( request),
   )
 
 
@@ -422,10 +450,11 @@ def vwNotFound(request):
       % (security.authenticated_userid( request),)
   errMsg = 'Page not found'
   dct = dict(
-    errMsg        = errMsg,
-    authedSecure  = security.authenticated_userid( request),
-    authedSession = request.session.has_key('authedSession'),
-    navList    = getNavList( request),
+    errMsg         = errMsg,
+    authedSecure   = security.authenticated_userid( request),
+    authedSession  = request.session.has_key('authedSession'),
+    subHead        = 'Page not found (HTTP 404)',
+    navList        = getNavList( request),
   )
   resp = renderers.render_to_response('tmNotFound.mak', dct, request=request)
   resp.status = '404 Not Found'
@@ -496,13 +525,11 @@ def vwQueryStd( request):
   varMapHtml = ''
   keys = varMap.keys()
   keys.sort()
-  for key in keys:
+  for ii in range( len( keys)):
+    key = keys[ii]
     dbName = varMap[key]
-    varMapHtml += (
-        '    <tr>\n'
-      + '      <th class="varMapRight"> %s </th>\n'
-      + '      <td class="varMapLeft"> %s </td> </tr>\n' \
-      + '    <tr>\n') % (key, descMap[dbName].desc,)
+    if ii > 0: varMapHtml += ', '
+    varMapHtml += '<b>%s</b> (%s)' % (key, descMap[dbName].desc,)
 
   pageStart = 0
   pageSize = 50
@@ -710,6 +737,7 @@ def vwQueryStd( request):
     sub_path       = request.route_path('rtQueryStd', queryRest='someRest'),
     authedSecure   = security.authenticated_userid( request),
     authedSession  = request.session.has_key('authedSession'),
+    subHead        = 'MatDB Query',
     navList        = getNavList( request),
   )
 # end vwQueryStd
@@ -892,6 +920,7 @@ def vwQueryAdv( request):
     sub_path       = request.route_path('rtQueryAdv', queryRest='someRest'),
     authedSecure   = security.authenticated_userid( request),
     authedSession  = request.session.has_key('authedSession'),
+    subHead        = 'MatDB Query',
     navList        = getNavList( request),
   )
 # end vwQueryAdv
@@ -919,12 +948,13 @@ def vwDetail(request):
     db_pairs.append( (pair[0].desc, pair[1]) )
 
   return dict(
-    errMsg        = errMsg,
-    db_pairs      = db_pairs,
-    midentval     = dbMap['model.mident'][1],
-    authedSecure  = security.authenticated_userid( request),
-    authedSession = request.session.has_key('authedSession'),
-    navList       = getNavList( request),
+    errMsg         = errMsg,
+    db_pairs       = db_pairs,
+    midentval      = dbMap['model.mident'][1],
+    authedSecure   = security.authenticated_userid( request),
+    authedSession  = request.session.has_key('authedSession'),
+    subHead        = 'MatDB Detail View',
+    navList        = getNavList( request),
   )
 
 
@@ -954,11 +984,22 @@ def vwDownloadSql(request):
   content = ''
   if errMsg == '':
     if format == 'python':
+      np.set_printoptions(threshold='nan')
+      np.set_printoptions(linewidth=80)
+      content += 'import datetime\n'
+      content += 'import numpy as np\n'
+      content += '\n'
+
       keys = dbMap.keys()
       keys.sort()
       for key in keys:
         (cdesc, value) = dbMap[key]
-        content += '%s = %s\n\n' % (cdesc.tag, repr( value),)
+        tag = cdesc.tag
+        stg = repr( value)
+        if type(value).__name__ == 'ndarray':
+          content += '# %s shape: %s\n' % (tag, value.shape,)
+          stg = 'np.' + stg
+        content += '%s = %s\n\n' % (tag, stg,)
     elif format == 'json':
       keys = dbMap.keys()
       keys.sort()
@@ -1073,7 +1114,7 @@ def vwVisualize(request):
   (errMsg, detailFields, dbMap) = getDbDetail( buglev, request, settings)
 
   basisMat = dbMap['model.finalbasismat'][1]
-  posMat = dbMap['model.finaldirectposmat'][1]
+  posMat = dbMap['model.finalfracposmat'][1]
   anames = dbMap['model.atomnames'][1]
   elementMap = xyzToSmol.getElementMap()
 
@@ -1101,13 +1142,14 @@ def vwVisualize(request):
     coordType, posScale, basisMat, atoms, bonds)
 
   return dict(
-    errMsg        = errMsg,
-    midentval     = dbMap['model.mident'][1],
-    formula       = dbMap['model.formula'][1],
-    smolString    = smolString,
-    authedSecure  = security.authenticated_userid( request),
-    authedSession = request.session.has_key('authedSession'),
-    navList       = getNavList( request),
+    errMsg         = errMsg,
+    midentval      = dbMap['model.mident'][1],
+    formula        = dbMap['model.formula'][1],
+    smolString     = smolString,
+    authedSecure   = security.authenticated_userid( request),
+    authedSession  = request.session.has_key('authedSession'),
+    subHead        = 'MatDB Visualize',
+    navList        = getNavList( request),
   )
 
 
@@ -1188,6 +1230,7 @@ def vwContrib(request):
     errMsg         = errMsg,
     authedSecure   = security.authenticated_userid( request),
     authedSession  = request.session.has_key('authedSession'),
+    subHead        = 'MatDB Contributions',
     navList        = getNavList( request),
   )
 

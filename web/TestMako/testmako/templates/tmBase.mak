@@ -9,49 +9,73 @@
 
 <style>
 
-  h2.title { color: #0067b8; }
 
-  table.subNav  { border: 1px solid white; border-collapse: collapse;}
 
-  th.subNav, td.subNav  {
-    border: 2px solid yellow; padding: 2px 5px 2px 5px;
-    /* padding: top right bottom left */
+  div#topnav table {  border-spacing: 5; }
+
+  div#topnav a:link {
+    text-decoration: none; }
+
+  td.navButtonStd {
+    color: #ff0000;
+    background-color: #0060b0;
+    padding: 3px 8px 3px 8px; }
+
+  td.navButtonInv {
+    color: #ff0000;
+    background-color: #ffffff;
+    padding: 3px 8px 3px 8px; }
+
+  div.navButtonStd {
+    color: #ffffff;
+    background-color: #0060b0;
+    font-style: normal;
+    font-variant: small-caps;
+  }
+  div.navButtonInv {
+    color: #0060b0;
+    background-color: #ffffff;
+    font-style: normal;
+    font-variant: small-caps;
+  }
+
+
+  table.subbanner {
+    width: 1000px;
+    border-spacing: 1;
+    border-collapse: separate;
+    margin-bottom: 10px;
+  }
+
+  td.subbanner {
+    color: #0060b0;
+    background-color: #e0e0e0;
+    padding: 5px 5px 5px 5px;
   }
 
   th.rightAlign { text-align: right; }
 
-  td.mainNav  {
-    padding: 2px 2px 2px 2px;
-    border-width: 2px;
-    border-style: solid;
-    border-top-color    : white;
-    border-right-color  : gray;
-    border-bottom-color : white;
-    border-left-color   : white;
-    padding: 5px 5px 5px 5px;   /* padding: top right bottom left */
-  }
-
   th.varMapLeft {
     background-color: #c0c0c0;
-	font-size: 100%;
+  font-size: 100%;
     text-align: left;
   }
 
   th.varMapRight {
     background-color: #c0c0c0;
-	font-size: 100%;
+  font-size: 100%;
     text-align: right;
   }
 
   td.varMapLeft {
     background-color: #c0c0c0;
-	font-size: 100%;
+  font-size: 100%;
     text-align: left;
   }
 
   td.varMapRight {
     background-color: #c0c0c0;
-	font-size: 100%;
+  font-size: 100%;
     text-align: right;
   }
 
@@ -60,12 +84,6 @@
     color: red;
     font-size: large;
     font-weight: bold;
-  }
-
-  /* Used for navigation buttons */
-  div.navButton {
-    color: #0000ee;
-    font-style: italic;
   }
 
   span.example {
@@ -85,6 +103,11 @@
     color: #0000ee;
     background-color: #ffffff;
   }
+
+  div.varMap {
+    color: #000000;
+	background-color: #c0c0e0;
+  }
 </style>
 
 <%block name="blkHead">
@@ -100,46 +123,53 @@ function setInitialFocus() {
 
 <body onload="setInitialFocus();">
 
-<!-- Two rows: navigation and body -->
-<table class="mainNav" style="width:100%;">
+  <div id="wrapper">
 
-<!-- First row: navigation -->
-<tr>
-<td class="mainNav" style="vertical-align:top;">
-  <div>
-  <table class="subNav" >
-  <tr>
-  % for pair in navList:
-    <th class="subNav">
-      <a href="${pair[1]}"> <div class="navButton"> ${pair[0]} </div></a>
-    </th>
-  % endfor
-  </tr>
-  </table>
+    <div id="nrelheader">
+      <img src="static/images/banner_nrel.png" alt="NREL - National Renewable Energy Laboratory"
+      usemap="#nrelheader_map" height="86" width="1000"/>
+      <map name="nrelheader_map" id="nrelheader_map">
+        <area shape="rect" coords="0,0,299,86" href="http://www.nrel.gov" alt="NREL - National Renewable Energy Laboratory" />
+        <area shape="rect" coords="300,0,1000,86" href="http://hpc.nrel.gov" alt="NREL High Performance Computing Center" />
+      </map>
+    </div>
+
+    <div id="topnav">
+      <table>
+        <tr>
+          ## navList has tuples: [tag, url, cssClass=navButtonStd/Inv]
+          % for tuple in navList:
+          <td class="${tuple[2]}">
+            <a href="${tuple[1]}">
+              <div class="${tuple[2]}"> ${tuple[0]} </div>
+            </a>
+          </td>
+          % endfor
+        </tr>
+      </table>
+    </div>
+
+    <div id="subheader">
+      ##<img src="static/images/banner_sub_a.jpg" alt=""
+      ##   height="40" width="1000"/>
+      <table class="subbanner">
+      <tr> <td class="subbanner">${subHead}</td></tr>
+      </table>
+    </div>
+
+    <div id="maincontent">
+    % if len(errMsg) > 0:
+    <!-- tmBase: errMsg: -->
+    <p/>
+    <div class="cerrMessage"> ${errMsg} </div>
+    <p/>
+    % endif
+    ## Include all body from the caller
+    <!-- tmBase: start included body -->
+    ${self.body()}
+    <!-- tmBase: end included body -->
+    </div>
   </div>
-</td>
-</tr>
-
-
-<!-- Second row: body -->
-<tr>
-<td>
-  <h2 class="title"> NREL MatDB: <%block name="blkTitle"/>
-  </h2>
-
-  % if len(errMsg) > 0:
-  <!-- tmBase: errMsg: -->
-  <p/>
-  <div class="cerrMessage"> ${errMsg} </div>
-  <p/>
-  % endif
-  ## Include all body from the caller
-  <!-- tmBase: start included body -->
-  ${self.body()}
-  <!-- tmBase: end included body -->
-</td>
-</tr>
-</table>
 
 </body>
 </html>

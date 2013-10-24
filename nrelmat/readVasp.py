@@ -107,8 +107,27 @@ def main():
 
   resObj = parseDir( bugLev, readType, inDir, maxLev)
 
-  print 'main: resObj:\n%s' % (resObj,)
+  print '\nmain: resObj:\n%s' % (resObj,)
 
+  np.set_printoptions(threshold='nan')
+  np.set_printoptions(linewidth=80)
+
+  print '\n===== main: final resObj =====\n'
+  print ''
+  print 'import datetime'
+  print 'import numpy as np'
+  print ''
+  keys = resObj.__dict__.keys()
+  keys.sort()
+  msg = ''
+  for key in keys:
+    val = resObj.__dict__[key]
+    stg = repr(val)
+    if type(val).__name__ == 'ndarray':
+      print ''
+      print '# %s shape: %s' % (key, val.shape,)
+      stg = 'np.' + stg
+    print '%s = %s' % (key, stg,)
 
 #====================================================================
 
@@ -250,8 +269,10 @@ def parsePylada( bugLev, inFile, resObj):
   # resObj.magnetizationMat = ex.magnetization
 
   #===== initial structure =====
-  resObj.initialBasisMat = ex.initial_structure.cell
-  resObj.initialRecipBasisMat = np.linalg.inv( resObj.initialBasisMat)
+  # In structure.cell, the basis vectors are columns.
+  # Change to rows.
+  resObj.initialBasisMat = ex.initial_structure.cell.T
+  resObj.initialRecipBasisMat = None  # not available
 
   struct = ex.initial_structure
   natom = len( struct)
@@ -259,16 +280,15 @@ def parsePylada( bugLev, inFile, resObj):
   for ii in range( natom):
     cartPos[ii] = struct[ii].pos      # no units
 
-  resObj.initialCartesianPosMat = np.array( cartPos)
+  resObj.initialCartPosMat = np.array( cartPos)
 
-  resObj.initialDirectPosMat = np.dot(
-    resObj.initialCartesianPosMat, resObj.initialRecipBasisMat)
+  resObj.initialFracPosMat = np.dot(
+    resObj.initialCartPosMat, np.linalg.inv( resObj.initialBasisMat))
 
   #===== final structure =====
-  resObj.finalBasisMat = ex.structure.cell
-
-  # xxx: not quite true:
-  resObj.finalRecipBasisMat = np.linalg.inv( resObj.finalBasisMat)
+  # In structure.cell, the basis vectors are columns.
+  # Change to rows.
+  resObj.finalBasisMat = ex.structure.cell.T
 
   struct = ex.structure
   natom = len( struct)
@@ -276,35 +296,39 @@ def parsePylada( bugLev, inFile, resObj):
   for ii in range( natom):
     cartPos[ii] = struct[ii].pos
 
-  resObj.finalCartesianPosMat = np.array( cartPos)
+  resObj.finalCartPosMat = np.array( cartPos)
 
-  resObj.finalDirectPosMat = np.dot(
-    resObj.finalCartesianPosMat, resObj.finalRecipBasisMat)
+  resObj.finalFracPosMat = np.dot(
+    resObj.finalCartPosMat, np.linalg.inv( resObj.finalBasisMat))
 
   #===== kpoints =====
-  resObj.kpointRecipSpaceCartCoords = ex.kpoints    # transform
-  resObj.numKpoint = resObj.kpointRecipSpaceCartCoords.shape[0]
+  resObj.kpointCartMat = ex.kpoints    # transform
+  resObj.numKpoint = resObj.kpointCartMat.shape[0]
   resObj.kpointWeights = None          # xxx not available
-  resObj.kpointRecipSpaceFracCoords = \
-    np.dot( resObj.kpointRecipSpaceCartCoords, resObj.initialBasisMat)
+
+  #resObj.kpointFracMat = np.dot(
+  #  resObj.kpointCartMat, np.linalg.inv( resObj.initialRecipBasisMat))
+  # initialRecipBasisMat is not available, so
+  resObj.kpointFracMat = None
+
   if bugLev >= 5:
     print 'numKpoint: %g' % (resObj.numKpoint,)
-    print 'kpointRecipSpaceFracCoords:\n%s' \
-      % (repr(resObj.kpointRecipSpaceFracCoords),)
-    print 'kpointRecipSpaceCartCoords:\n%s' \
-      % (repr(resObj.kpointRecipSpaceCartCoords),)
+    print 'kpointFracMat:\n%s' % (repr(resObj.kpointFracMat),)
+    print 'kpointCartMat:\n%s' % (repr(resObj.kpointCartMat),)
   #===== final volume and density =====
-  resObj.finalVolumeVasp_ang3 = float( ex.volume)     # Angstrom^3
-  resObj.density_g_cm3 = float( ex.density)           # g/cm3
+  resObj.finalVolume_ang3 = float( ex.volume)         # Angstrom^3
+  resObj.recipVolume = float( ex.reciprocal_volume)
+  resObj.finalDensity_g_cm3 = float( ex.density)      # g/cm3
   #===== last calc forces =====
   resObj.finalForceMat_ev_ang = np.array( ex.forces)  # eV/angstrom
   resObj.finalStressMat_kbar = np.array( ex.stress)   # kbar
   resObj.finalPressure_kbar = float( ex.pressure)     # kbar
   #===== eigenvalues and occupancies =====
   resObj.eigenMat = np.array( ex.eigenvalues)
-  # Caution: for non-magnetic, OUTCAR occMat = 2 while vasprun.xml = 1.
-  # For magnetic, OUTCAR and vasprun.xml both have 1.
-  resObj.occMat = np.array( ex.occupations)
+  # Caution: for non-magnetic (numSpin==1),
+  #   OUTCAR has occupMat values = 2, while vasprun.xml has values = 1.
+  # For magnetic (numSpin==2), both OUTCAR and vasprun.xml have 1.
+  resObj.occupMat = np.array( ex.occupations)
   #===== misc junk =====
   #===== energy, efermi0 =====
   resObj.energyNoEntrp = float( ex.total_energy)         # eV
@@ -540,9 +564,39 @@ def parseXml( bugLev, inFile, maxLev, resObj):
   resObj.typeMasses_amu  = atomTypeMrr['mass']
   resObj.typeValences    = atomTypeMrr['valence']
   resObj.typePseudos     = atomTypeMrr['pseudopotential']
+
   if bugLev >= 5:
     print '\natomTypeMrr:'
     printMrr( atomTypeMrr)
+    print '\nunsorted atomTypes:'
+    print 'typeNames: %s' % ( resObj.typeNames,)
+    print 'typeNums: %s' % ( resObj.typeNums,)
+    print 'typeMasses_amu: %s' % ( resObj.typeMasses_amu,)
+    print 'typeValences: %s' % ( resObj.typeValences,)
+    print 'typePseudos: %s' % ( resObj.typePseudos,)
+
+  # Sort parallel arrays typeNames, typeNums, etc,
+  # by typeNames alphabetic order,
+  # using an index sort with tpIxs.
+  # In rare cases like icsd_024360.cif/hs-ferro
+  # the names are out of order.
+  # Sort to set tpIxs[newIx] == oldIx.
+  ntype = len( resObj.typeNames)
+  tpIxs = range( ntype)
+  def sortFunc( ia, ib):
+    return cmp( resObj.typeNames[ia], resObj.typeNames[ib])
+  tpIxs.sort( sortFunc)
+  if bugLev >= 5:
+    print 'tpIxs: %s' % (tpIxs,)
+
+  resObj.typeNames      = [resObj.typeNames[ix] for ix in tpIxs]
+  resObj.typeNums       = [resObj.typeNums[ix] for ix in tpIxs]
+  resObj.typeMasses_amu = [resObj.typeMasses_amu[ix] for ix in tpIxs]
+  resObj.typeValences   = [resObj.typeValences[ix] for ix in tpIxs]
+  resObj.typePseudos    = [resObj.typePseudos[ix] for ix in tpIxs]
+
+  if bugLev >= 5:
+    print '\nsorted atomTypes:'
     print 'typeNames: %s' % ( resObj.typeNames,)
     print 'typeNums: %s' % ( resObj.typeNums,)
     print 'typeMasses_amu: %s' % ( resObj.typeMasses_amu,)
@@ -568,23 +622,58 @@ def parseXml( bugLev, inFile, maxLev, resObj):
 
   atomMrr = getArrayByPath(
     bugLev, root, 'atominfo/array[@name=\'atoms\']')
+  atomNames = atomMrr['element']
+  atomTypes = [ix - 1 for ix in atomMrr['atomtype']]  # change to origin 0
+  natom = len( atomTypes)
+
   if bugLev >= 5:
     print '\natomMrr:'
     printMrr( atomMrr)
+    print '\nunsorted atoms:'
+    print 'atomNames: %s' % ( atomNames,)
+    print 'atomTypes: %s' % ( atomTypes,)
 
-  resObj.atomNames = atomMrr['element']
-  natom = len( resObj.atomNames)
+  # The permutation array tpIxs maps tpIxs[newIx] = oldIx.
+  # Invert it to get tpIxInvs[oldIx] = newIx.
+  tpIxInvs = ntype * [0]
+  for ii in range( ntype):
+    tpIxInvs[ tpIxs[ii]] = ii
+  if bugLev >= 5:
+    print 'tpIxInvs: %s' % (tpIxInvs,)
+
+  # Sort atomNames, atomTypes by tpIxInvs[atomtype] so they
+  # are in the same order as typenames, typenums, etc, above.
+  # Currently atomType[i] = old index num into atomTypes.
+  # We want to sort by new index num into atomTypes.
+
+  atomIxs = range( natom)
+  def sortFunc( ia, ib):
+    return cmp( tpIxInvs[ atomTypes[ ia]], tpIxInvs[ atomTypes[ ib]])
+  atomIxs.sort( sortFunc)
+  atomNames = [atomNames[ix] for ix in atomIxs]
+  atomTypes = [tpIxInvs[ atomTypes[ix]] for ix in atomIxs]
+
+  if bugLev >= 5:
+    print '\natomIxs: %s' % (atomIxs,)
+    print '\nsorted atoms:'
+    print 'atomNames: %s' % ( atomNames,)
+    print 'atomTypes: %s' % ( atomTypes,)
+
+  resObj.atomNames = atomNames
+  resObj.atomTypes = atomTypes
   resObj.atomMasses_amu = natom * [None]
   resObj.atomValences = natom * [None]
   resObj.atomPseudos = natom * [None]
   for ii in range( natom):
-    ix = atomMrr['atomtype'][ii] - 1       # change to origin 0
-    if resObj.atomNames[ii] != resObj.typeNames[ix]: throwerr('name mismatch')
-    resObj.atomMasses_amu[ii]   = resObj.typeMasses_amu[ix]
+    ix = atomTypes[ii]
+    if resObj.atomNames[ii] != resObj.typeNames[ix]:
+      throwerr('name mismatch')
+    resObj.atomMasses_amu[ii] = resObj.typeMasses_amu[ix]
     resObj.atomValences[ii] = resObj.typeValences[ix]
     resObj.atomPseudos[ii] = resObj.typePseudos[ix]
   if bugLev >= 5:
     print 'atomNames: %s' % ( resObj.atomNames,)
+    print 'atomTypes: %s' % ( resObj.atomTypes,)
     print 'atomMasses_amu: %s' % ( resObj.atomMasses_amu,)
     print 'atomValences: %s' % ( resObj.atomValences,)
     print 'atomPseudos: %s' % ( resObj.atomPseudos,)
@@ -598,14 +687,6 @@ def parseXml( bugLev, inFile, maxLev, resObj):
   for ii in range(len(resObj.atomNames) - 1):
     if resObj.atomNames[ii] > resObj.atomNames[ii+1]:
       throwerr('atomNames not in order')
-
-  # Future: if need be:
-  ## Use ixs to sort parallel arrays typenames, typenums, etc,
-  ## by typenames alphabetic order
-  #ixs = range( tlen)
-  #def sortFunc( ia, ib):
-  #  return cmp( tnames[ia], tnames[ib])
-  #ixs.sort( sortFunc)
 
   if bugLev >= 5: print '\n===== initial structure =====\n'
 
@@ -628,34 +709,31 @@ def parseXml( bugLev, inFile, maxLev, resObj):
     root,
     'structure[@name=\'initialpos\']/crystal/varray[@name=\'rec_basis\']/v',
     3, 3, float)
-  resObj.initialDirectPosMat = getRawArray(
+  resObj.initialFracPosMat = getRawArray(
     root,
     'structure[@name=\'initialpos\']/varray[@name=\'positions\']/v',
     0, 3, float)    # xxx nrow should be natom
 
-  resObj.initialCartesianPosMat = np.dot(
-    resObj.initialDirectPosMat, resObj.initialBasisMat)
+  resObj.initialCartPosMat = np.dot(
+    resObj.initialFracPosMat, resObj.initialBasisMat)
   # xxx mult by scale factor?
 
   if bugLev >= 5:
     print 'initialBasisMat:\n%s' % (repr(resObj.initialBasisMat),)
     print 'initialRecipBasisMat:\n%s' % (repr(resObj.initialRecipBasisMat),)
-    print 'initialDirectPosMat:\n%s' % (repr(resObj.initialDirectPosMat),)
-    print 'initialCartesianPosMat:\n%s' % (repr(resObj.initialCartesianPosMat),)
-    print 'Check inverse: dot(basis,recip):\n%s' \
-      % (repr(np.dot( resObj.initialBasisMat, resObj.initialRecipBasisMat)),)
-    print 'Check inverse: dot(recip,basis):\n%s' \
-      % (repr(np.dot( resObj.initialRecipBasisMat, resObj.initialBasisMat)),)
+    print 'initialFracPosMat:\n%s' % (repr(resObj.initialFracPosMat),)
+    print 'initialCartPosMat:\n%s' % (repr(resObj.initialCartPosMat),)
 
 
 
   if bugLev >= 5: print '\n===== final structure =====\n'
 
   # structure == final pos
-  # POSCAR specifies each basis vector as one row.
+  # POSCAR and OUTCAR specify each basis vector as one row.
   # So does vasprun.xml.
   # But PyLada's structure.cell is the transpose: each basis vec is a column.
-  # PyLada reads the catted CONTCAR.
+  #
+  # In vasprun.xml and OUTCAR, the basis vectors are rows.
   resObj.finalBasisMat = getRawArray(
     root,
     'structure[@name=\'finalpos\']/crystal/varray[@name=\'basis\']/v',
@@ -664,24 +742,20 @@ def parseXml( bugLev, inFile, maxLev, resObj):
     root,
     'structure[@name=\'finalpos\']/crystal/varray[@name=\'rec_basis\']/v',
     3, 3, float)
-  resObj.finalDirectPosMat = getRawArray(
+  resObj.finalFracPosMat = getRawArray(
     root,
     'structure[@name=\'finalpos\']/varray[@name=\'positions\']/v',
     0, 3, float)    # xxx nrow should be natom
 
-  resObj.finalCartesianPosMat = np.dot(
-    resObj.finalDirectPosMat, resObj.finalBasisMat)
+  resObj.finalCartPosMat = np.dot(
+    resObj.finalFracPosMat, resObj.finalBasisMat)
   # xxx mult by scale factor?
 
   if bugLev >= 5:
     print 'finalBasisMat:\n%s' % (repr(resObj.finalBasisMat),)
     print 'finalRecipBasisMat:\n%s' % (repr(resObj.finalRecipBasisMat),)
-    print 'finalDirectPosMat:\n%s' % (repr(resObj.finalDirectPosMat),)
-    print 'finalCartesianPosMat:\n%s' % (repr(resObj.finalCartesianPosMat),)
-    print 'Check inverse: dot(basis,recip):\n%s' \
-      % (repr(np.dot( resObj.finalBasisMat, resObj.finalRecipBasisMat)),)
-    print 'Check inverse: dot(recip,basis):\n%s' \
-      % (repr(np.dot( resObj.finalRecipBasisMat, resObj.finalBasisMat)),)
+    print 'finalFracPosMat:\n%s' % (repr(resObj.finalFracPosMat),)
+    print 'finalCartPosMat:\n%s' % (repr(resObj.finalCartPosMat),)
 
 
 
@@ -689,19 +763,17 @@ def parseXml( bugLev, inFile, maxLev, resObj):
 
   # kpoint coordinates.
   # Not in PyLada?
-  resObj.kpointRecipSpaceFracCoords = getRawArray(
+  resObj.kpointFracMat = getRawArray(
     root, 'kpoints/varray[@name=\'kpointlist\']/v',
     0, 3, float)
-  resObj.numKpoint = resObj.kpointRecipSpaceFracCoords.shape[0]
+  resObj.numKpoint = resObj.kpointFracMat.shape[0]
 
-  resObj.kpointRecipSpaceCartCoords \
-    = np.dot( resObj.kpointRecipSpaceFracCoords, resObj.initialRecipBasisMat)
+  resObj.kpointCartMat \
+    = np.dot( resObj.kpointFracMat, resObj.initialRecipBasisMat)
   if bugLev >= 5:
     print 'numKpoint: %g' % (resObj.numKpoint,)
-    print 'kpointRecipSpaceFracCoords:\n%s' \
-      % (repr(resObj.kpointRecipSpaceFracCoords),)
-    print 'kpointRecipSpaceCartCoords:\n%s' \
-      % (repr(resObj.kpointRecipSpaceCartCoords),)
+    print 'kpointFracMat:\n%s' % (repr(resObj.kpointFracMat),)
+    print 'kpointCartMat:\n%s' % (repr(resObj.kpointCartMat),)
 
   # This is what PyLada calls multiplicity.
   # The only diff is the scaling.
@@ -722,37 +794,40 @@ def parseXml( bugLev, inFile, maxLev, resObj):
   if bugLev >= 5: print '\n===== final volume and density =====\n'
 
   # volume, Angstrom^3
+  # The scale is hard coded as 1.0 in PyLada crystal/read.py,
+  # in both icsd_cif_a and icsd_cif_b.
   volScale = 1.0
   resObj.finalVolumeCalc_ang3 = abs( np.linalg.det(
     volScale * resObj.finalBasisMat))
   if bugLev >= 5:
     print 'finalVolumeCalc_ang3: %g' % (resObj.finalVolumeCalc_ang3,)
 
-  resObj.finalVolumeVasp_ang3 = getScalar(
+  resObj.finalVolume_ang3 = getScalar(
     root, 'structure[@name=\'finalpos\']/crystal/i[@name=\'volume\']', float)
   if bugLev >= 5:
-    print 'finalVolumeVasp_ang3: %g' % (resObj.finalVolumeVasp_ang3,)
+    print 'finalVolume_ang3: %g' % (resObj.finalVolume_ang3,)
 
   # reciprocal space volume, * (2*pi)**3
+  # As in PyLada.
   invMat = np.linalg.inv( volScale * resObj.finalBasisMat)
-  resObj.recVolumeCalc = abs( np.linalg.det( invMat)) * (2 * np.pi)**3
+  resObj.recipVolume = abs( np.linalg.det( invMat)) * (2 * np.pi)**3
   if bugLev >= 5:
-    print 'recVolumeCalc: origMat:\n%s' \
+    print 'recipVolume: origMat:\n%s' \
       % (repr(volScale * resObj.finalBasisMat),)
-    print 'recVolumeCalc: invMat:\n%s' % (repr(invMat),)
-    print 'recVolumeCalc: det:\n%s' % (repr(np.linalg.det( invMat)),)
-    print 'recVolumeCalc: %g' % (resObj.recVolumeCalc,)
+    print 'recipVolume: invMat:\n%s' % (repr(invMat),)
+    print 'recipVolume: det:\n%s' % (repr(np.linalg.det( invMat)),)
+    print 'recipVolume: %g' % (resObj.recipVolume,)
 
   # Density
   # xxx better: get atomic weights from periodic table
   volCm = resObj.finalVolumeCalc_ang3 / (1.e8)**3    # 10**8 Angstrom per cm
   totMass = np.dot( atomTypeMrr['atomspertype'], atomTypeMrr['mass'])
   totMassGm = totMass *  1.660538921e-24        #  1.660538921e-24 g / amu
-  resObj.density_g_cm3 = totMassGm / volCm
+  resObj.finalDensity_g_cm3 = totMassGm / volCm
   if bugLev >= 5:
     print 'volCm: %g' % (volCm,)
     print 'totMassGm: %g' % (totMassGm,)
-    print 'density_g_cm3: %g' % (resObj.density_g_cm3,)
+    print 'finalDensity_g_cm3: %g' % (resObj.finalDensity_g_cm3,)
 
 
   if bugLev >= 5: print '\n===== last calc forces =====\n'
@@ -804,12 +879,14 @@ def parseXml( bugLev, inFile, maxLev, resObj):
   resObj.numBand = shp[2]
 
   resObj.eigenMat = eigenMrr['eigene']
-  # Caution: for non-magnetic, OUTCAR occMat = 2 while vasprun.xml = 1.
-  # For magnetic, OUTCAR and vasprun.xml both have 1.
-  resObj.occMat = eigenMrr['occ']
+  # Caution: for non-magnetic (numSpin==1),
+  #   OUTCAR has occupMat values = 2, while vasprun.xml has values = 1.
+  # For magnetic (numSpin==2), both OUTCAR and vasprun.xml have 1.
+  resObj.occupMat = eigenMrr['occ']
+  if resObj.numSpin == 1: resObj.occupMat *= 2
   if bugLev >= 5:
     print 'resObj.eigenMat.shape: ', resObj.eigenMat.shape
-    print 'resObj.occMat.shape: ', resObj.occMat.shape
+    print 'resObj.occupMat.shape: ', resObj.occupMat.shape
   
   # Compare projected and standard eigenvalues
   getProjected = False

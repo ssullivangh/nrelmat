@@ -6,9 +6,6 @@
 ##</%block>
 
 
-<%block name="blkTitle"> NREL Materials Database </%block>
-
-
 <!-- tmHome.body: start -->
 
 The NREL MatDB is a central part of the search for more

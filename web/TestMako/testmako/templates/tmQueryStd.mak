@@ -13,102 +13,87 @@ function setInitialFocus() {
 </%block>
 
 
-<%block name="blkTitle"> Query </%block>
-
-
 <!-- tmQueryStd.body: start -->
 
   <div id="form">
   <form action="" method="get" name="forma">
 
-	<table style="border-collapse: collapse;">
-	<tr>
-	  <td colspan="2">
-	  <input type="radio" name="qset" value="subset" ${qsetSubset}/>
-		<b>At most</b> these elements, and no others <br/>
-	  </td>
-	</tr><tr>
-	  <td colspan="2">
-	  <input type="radio" name="qset" value="exact" ${qsetExact}/>
-		<b>Exactly</b> these elements, in any proportions <br/>
-	  </td>
-	</tr><tr>
-	  <td colspan="2">
-	  <input type="radio" name="qset" value="superset" ${qsetSuperset}/>
-		<b>At least</b> all these elements, possibly with others <br/>
-	  </td>
-	</tr><tr>
-	  <td colspan="2">
-	  <input type="radio" name="qset" value="formula" ${qsetFormula}/>
-		<b>Formula:</b> exactly this chemical formula <br/>
-	  </td>
-	</tr>
-	<tr>
-	  <th class="rightAlign"> Require&nbsp;Elements: </th>
-	  <td>
-	  <input type="text" name="qrequires" size="30" value="${qrequires}"/>
-	  </td>
-	</tr>
-	<tr>
-	  <th class="rightAlign"> Forbid&nbsp;Elements: </th>
-	  <td>
-	  <input type="text" name="qforbids" size="30" value="${qforbids}"/>
-	  </td>
-	</tr>
-	<tr>
-	  <th class="rightAlign"> Restrictions: </th>
-	  <td>
-	  <input type="text" name="qexpr" size="80" value="${qexpr}"/>
-	  </td>
-	</tr>
-	<tr>
-	  <td class="varMapLeft">
-	  <b>Variables for restrictions:</b><br>
-	  The variable names for<br>
-	  use in the restrictions box<br>
-	  are shown to the right.
-	  </td>
-	  <td>
-		<table>
-		<tr>
-		<th class="varMapRight"> Variable </th>
-		<th class="varMapLeft"> Meaning </th>
-		</tr>
-		${varMapHtml | n}
-		</table>
-	  </td>
-	</tr>
-	</table>
+    <table style="border-collapse: collapse;">
+    <tr>
+      <td colspan="2">
+      <b>Elements:</b>
+      <input type="text" name="qrequires" size="30" value="${qrequires}"/>
+      </td>
+    </tr>
+    <tr>
+      <td>
+      <input type="radio" name="qset" value="subset" ${qsetSubset}/>
+        <b>At most</b> these elements, and no others <br/>
+      </td>
+      <td>
+      <input type="radio" name="qset" value="exact" ${qsetExact}/>
+        <b>Exactly</b> these elements, in any proportions <br/>
+      </td>
+    </tr><tr>
+      <td>
+      <input type="radio" name="qset" value="superset" ${qsetSuperset}/>
+        <b>At least</b> all these elements, possibly with others <br/>
+      </td>
+      <td>
+      <input type="radio" name="qset" value="formula" ${qsetFormula}/>
+        <b>Formula:</b> exactly this chemical formula <br/>
+      </td>
+    </tr>
+    </table>
 
-    <br>
-	<b>Include results from:</b>
-	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-    % if showLastNameStevanovic:
-	  <input type="checkbox" name="showLastNameStevanovic" checked="checked">
-	% else:
-	  <input type="checkbox" name="showLastNameStevanovic">
-	% endif
-	Stevanovic
-	&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-    % if showLastNameZawadzki:
-	  <input type="checkbox" name="showLastNameZawadzki" checked="checked">
-	% else:
-	  <input type="checkbox" name="showLastNameZawadzki">
-	% endif
-	Zawadzki
 
-    <br>
-    % if showMinEnergyOnly:
-	  <input type="checkbox" name="showMinEnergyOnly" checked="checked">
-	% else:
-	  <input type="checkbox" name="showMinEnergyOnly">
-	% endif
-	Show only the min energy row for each formula and symGroupNum
-	</input>
+
+
 	<br/>
+    <b>Restrictions: </b>
+    <input type="text" name="qexpr" size="80" value="${qexpr}"/>
+	<br/>
+    <div class="varMap">(<b>Restrictions:</b> ${varMapHtml | n}) </div>
 
+
+
+	<br/>
+    <b> Forbid Elements:</b>
+	<input type="text" name="qforbids" size="30" value="${qforbids}"/>
+
+
+
+	<br/>
+    <b>Include results from:</b>
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    % if showLastNameStevanovic:
+      <input type="checkbox" name="showLastNameStevanovic" checked="checked">
+    % else:
+      <input type="checkbox" name="showLastNameStevanovic">
+    % endif
+    Stevanovic
+    &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+    % if showLastNameZawadzki:
+      <input type="checkbox" name="showLastNameZawadzki" checked="checked">
+    % else:
+      <input type="checkbox" name="showLastNameZawadzki">
+    % endif
+    Zawadzki
+
+    <br/>
+    % if showMinEnergyOnly:
+      <input type="checkbox" name="showMinEnergyOnly" checked="checked">
+    % else:
+      <input type="checkbox" name="showMinEnergyOnly">
+    % endif
+    Show only the min energy row for each formula and symGroupNum
+    </input>
+
+	&nbsp; &nbsp; &nbsp; &nbsp; &nbsp;
     <input type="submit" name="submitQuery" value="Submit Query"/>
-	% if len(errMsg) == 0 and len(tableHtml) > 0:
+
+    <br/>
+    % if len(errMsg) == 0 and len(tableHtml) > 0:
       <b>
         Total number of matches: ${numTotal}
         &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
@@ -126,7 +111,7 @@ function setInitialFocus() {
         % endif
       % endfor
     % endif
-	<br/>
+    <br/>
   </form>
   </div>
 
@@ -157,9 +142,9 @@ function setInitialFocus() {
 
   % if len(errMsg) == 0 and len(tableHtml) > 0:
     <p></p>
-	<div id="body">
-	${tableHtml | n}
-	</div>
+    <div id="body">
+    ${tableHtml | n}
+    </div>
   % endif
 
 <!-- tmQueryStd.body: end -->

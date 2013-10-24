@@ -11,9 +11,6 @@ function setInitialFocus() {
 </%block>
 
 
-<%block name="blkTitle"> Login </%block>
-
-
 <!-- tmLogin.body: start -->
 
 <div id="form">

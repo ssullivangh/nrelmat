@@ -478,7 +478,7 @@ def doUpload(
 
   # Print statistics
   msg = 'wrapUpload: file summary:\n'
-  msg += '  total num kept dirs: %d' % (numKeptDir,)
+  msg += '  total num kept dirs: %d\n' % (numKeptDir,)
   for nm in requireNames:
     totNum = countMap[nm]
     omitted = totNum - numKeptDir
@@ -1274,9 +1274,8 @@ def parseMetadata( fpath):
                 errMsg += 'Specify DOI without the initial http://\n'
             if field in [standardsTag, keywordsTag]:
               if len(tok) < 1  \
-                or re.search(r'[^-a-zA-Z0-9]', tok) \
-                or (not re.match('^[a-zA-Z]$', tok[0])) \
-                or (not re.match('^[a-zA-Z0-9]$', tok[-1])):
+                or re.search(r'[^-+_=.@%&a-zA-Z0-9]', tok) \
+                or (not re.match('^[a-zA-Z]$', tok[0])):
                 errMsg += 'Invalid keyword: "%s"\n' % (tok,)
             if len(errMsg) > 0:
               errMsg += '  Invalid item: "%s"\n' % (tok,) \

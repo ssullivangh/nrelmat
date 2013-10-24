@@ -26,9 +26,6 @@ function setInitialFocus() {
 </%block>
 
 
-<%block name="blkTitle"> Contributions </%block>
-
-
 <!-- tmContrib.body: start -->
 
   % if len(errMsg) == 0:

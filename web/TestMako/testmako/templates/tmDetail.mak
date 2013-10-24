@@ -6,9 +6,6 @@
 ##</%block>
 
 
-<%block name="blkTitle"> Structure Detail </%block>
-
-
 <!-- tmDetail.body: start -->
 
 % if len(errMsg) == 0:

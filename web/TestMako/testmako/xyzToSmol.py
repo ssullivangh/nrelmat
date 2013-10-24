@@ -70,11 +70,11 @@ import numpy as np
 #
 #   basisMatrix  va vb vc          Basis matrix, such that
 #                                  cartesianPosMatInAngstrom
-#                                    = posScale * directPosMat * basisMat
+#                                    = posScale * fracPosMat * basisMat
 #
 #   atom         sym x y z         Specifies an atom position.
 #                                  If coordType is "direct", this is
-#                                  the directPosMat.
+#                                  the fracPosMat.
 #                                  If "cartesian", this is the cartesianPosMat.
 #
 #   bond         ixa ixb           Specifies a bond between two atoms,
@@ -230,7 +230,7 @@ def badparms(msg):
   print ''
   print '  -posScale  Scale factor for input dists, such that'
   print '             cartesianPosMatInAngstrom'
-  print '             = posScale * directPosMat * basisMat'
+  print '             = posScale * fracPosMat * basisMat'
   print ''
   print '  -inFile    Name of input xyz format file'
   print ''
@@ -286,7 +286,7 @@ def main():
   (description, atoms) = readXyz( inFile, elementMap)
 
   #  The basisMat is such that
-  #    cartesianPosMatInAngstrom = posScale * directPosMat * basisMat
+  #    cartesianPosMatInAngstrom = posScale * fracPosMat * basisMat
   # For an xyz file, we have only the cartesian coords
   # and no basis matrix.
   # Normally posScale = 1.0 (for Angstroms),
@@ -556,7 +556,7 @@ def formatSmol( bugLev, description, elementMap, coordType,
 
 
 
-# cartesianPosMatInAngstrom = posScale * directPosMat * basisMat
+# cartesianPosMatInAngstrom = posScale * fracPosMat * basisMat
 #
 # cartVec = posScale * basisMatTranspose * directVec
 
