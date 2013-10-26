@@ -38,9 +38,9 @@ def badparms( msg):
   print '  -bugLev      <int>      Debug level'
   print '  -func        <string>   CreateTableModel / createTableContrib'
   print '                          / fillTable'
-  print '  -useCommit   <boolean>  If true, we commit changes to the DB.'
-  print '  -deleteTable <boolean>  If func is create*, using -deleteTable true'
-  print '                          allows deletion of old table first.'
+  print '  -useCommit   <boolean>  false/true: do we commit changes to the DB.'
+  print '  -deleteTable <boolean>  false/true: If func is create*, do we'
+  print '                          delete the old table first.'
   print '  -archDir     <string>   Input dir tree'
   print '  -wrapId      <string>   Full uui or "first" or "last"'
   print '  -inSpec      <string>   JSON file containing parameters.'
@@ -64,9 +64,9 @@ def main():
   ================  =========    ==============================================
   **-bugLev**       integer      Debug level.  Normally 0.
   **-func**         string       Function.  See below.
-  **-useCommit**    boolean      If true, we commit changes to the DB.
-  **-deleteTable**  boolean      If func is create*, using -deleteTable true
-                                 allows deletion of old table first.
+  **-useCommit**    boolean      false/true: do we commit changes to the DB.
+  **-deleteTable**  boolean      false/true: If func is create*, do we
+                                 delete the old table first.
   **-archDir**      string       Input dir tree.
   **-wrapId**       string       The unique id of this upload, created
                                  by wrapReceive.py from the uploaded file name.

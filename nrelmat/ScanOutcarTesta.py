@@ -30,6 +30,7 @@ def main():
   Parameter         Type         Description
   ================  =========    ==============================================
   **-bugLev**       integer      Debug level.  Normally 0.
+  **-readType       string       outcar / xml
   **-inDir**        string       Input directory containing OUTCAR
                                  and/or vasprun.xml.
   ================  =========    ==============================================

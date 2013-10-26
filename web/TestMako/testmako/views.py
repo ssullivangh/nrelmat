@@ -17,6 +17,8 @@
 import gzip   # preload gzip since tarfile loads it dynamically
 import json, os, re, StringIO, sys, tarfile, traceback
 import psycopg2
+import numpy as np
+
 from pyramid.view import view_config
 from pyramid.view import forbidden_view_config
 from pyramid.httpexceptions import HTTPFound
@@ -159,9 +161,9 @@ def getModelColDescs():
 
     #--- initial structure ---
     ColumnDesc('initialbasismat', 'initialBasisMat', '[[%g]]',
-      'initial basis matrix'),
+      'initial basis matrix, rows are basis vecs'),
     ColumnDesc('initialrecipbasismat', 'initialRecipBasisMat', '[[%g]]',
-      'initial reciprocal basis matrix'),
+      'initial reciprocal basis matrix, rows are basis vecs'),
     ColumnDesc('initialcartposmat', 'initialCartPosMat', '[[%g]]',
       'initial cartesian position matrix'),
     ColumnDesc('initialfracposmat', 'initialFracPosMat', '[[%g]]',
@@ -169,9 +171,9 @@ def getModelColDescs():
 
     #--- final structure ---
     ColumnDesc('finalbasismat', 'finalBasisMat', '[[%g]]',
-      'final basis matrix (rows)'),
+      'final basis matrix, rows are basis vecs'),
     ColumnDesc('finalrecipbasismat', 'finalRecipBasisMat', '[[%g]]',
-      'final reciprocal basis matrix (rows)'),
+      'final reciprocal basis matrix, rows are basis vecs'),
     ColumnDesc('finalcartposmat', 'finalCartPosMat', '[[%g]]',
       'final cartesian position matrix (row per atom, = direct * basis)'),
     ColumnDesc('finalfracposmat', 'finalFracPosMat', '[[%g]]',

@@ -5,6 +5,64 @@ import numpy as np
 
 
 #====================================================================
+
+def badparms( msg):
+  print '\nError: %s' % (msg,)
+  print 'Parms:'
+  print '  -bugLev    <int>      debug level'
+  print '  -inFile    <string>   input file'
+  print '  -posScale  <string>   Either float scale value, or the name'
+  print '                        of the POSCAR file so we can read it.'
+  print ''
+  sys.exit(1)
+
+#====================================================================
+
+def main():
+  '''
+  Test driver: Extracts info from a VASP OUTCAR file.
+
+  Command line parameters:
+
+  ================  =========    ==============================================
+  Parameter         Type         Description
+  ================  =========    ==============================================
+  **-bugLev**       integer      Debug level.  Normally 0.
+  **-inFile**       string       Input file
+  **-posScale**     string       Either float scale value, or the name
+                                 of the POSCAR file so we can read it.
+  ================  =========    ==============================================
+  '''
+
+  bugLev = 0
+  inFile = None
+  posScaleStg = None
+
+  if len(sys.argv) % 2 != 1:
+    badparms('Parms must be key/value pairs')
+  for iarg in range( 1, len(sys.argv), 2):
+    key = sys.argv[iarg]
+    val = sys.argv[iarg+1]
+    if key == '-bugLev': bugLev = int( val)
+    elif key == '-inFile': inFile = val
+    elif key == '-posScale': posScaleStg = val
+    else: badparms('unknown key: "%s"' % (key,))
+
+  if bugLev == None: badparms('parm not specified: -bugLev')
+  if inFile == None: badparms('parm not specified: -inFile')
+  if posScaleStg == None: badparms('parm not specified: -posScale')
+
+  try: posScale = float( posScaleStg)
+  except ValueError, exc:
+    with open( posScaleStg) as fin:
+      lines = fin.readlines()
+    posScale = float( lines[1].strip())
+
+  resObj = ResClass()
+  ScanOutcar( bugLev, inFile, posScale, resObj)       # fill resObj
+
+
+#====================================================================
 #====================================================================
 
 class ResClass:
@@ -60,21 +118,21 @@ class Sspec:
 #====================================================================
 
 
+# Fills resObj.
+
 class ScanOutcar:
 
-
-  def __init__( self, bugLev, fname):
+  def __init__( self, bugLev, fname, posScale, resObj):
     self.bugLev = bugLev
     self.fname = fname
+    self.posScale = posScale
+
     with open( fname) as fin:
       self.lines = fin.readlines()
     self.numLine = len( self.lines)
     # Strip all lines
     for ii in range( self.numLine):
       self.lines[ii] = self.lines[ii].strip()
-
-  def scan( self):
-    resObj = ResClass()
 
     self.getScalars( resObj)
     self.getDate( resObj)
@@ -95,12 +153,11 @@ class ScanOutcar:
     self.calcEfermi( resObj)
     self.calcBandgaps( resObj)
 
-    return resObj
-
 
 #====================================================================
 
   def getScalars( self, resObj):
+    #   k-points           NKPTS =    260   k-points in BZ     NKDIM =    260   number of bands    NBANDS=     11
     nkpointPat = r'^k-points +NKPTS *= *(\d+) +k-points in BZ' \
       + r' +NKDIM *= *\d+ +number of bands +NBANDS *= *\d+$'
     nbandPat   = r'^k-points +NKPTS *= *\d+ +k-points in BZ' \
@@ -135,7 +192,9 @@ class ScanOutcar:
       #   number of bands    NBANDS=     13
       Sspec( 'numKpoint', nkpointPat, 'first', 1, 1, int),
       Sspec( 'numBand',   nbandPat, 'first', 1, 1, int),
-      # volume of cell :       20.0121
+
+      # Volume
+      #   volume of cell :       20.0121
       Sspec( 'finalVolume_ang3', r'^volume of cell *: +([-.E0-9]+)$',
         'last', 1, 0, float),
 
@@ -329,10 +388,10 @@ class ScanOutcar:
     test_initialCartPosMat = np.dot(
       resObj.initialFracPosMat, resObj.initialBasisMat)
     if not np.allclose(
-      test_initialFracPosMat, resObj.initialFracPosMat, 0, 1.e-1):
+      test_initialFracPosMat, resObj.initialFracPosMat, 0, 1.e-3):
       self.throwerr('initialFracMat mismatch', None)
     if not np.allclose(
-      test_initialCartPosMat, resObj.initialCartPosMat, 0, 1.e-1):
+      test_initialCartPosMat, resObj.initialCartPosMat, 0, 1.e-3):
       self.throwerr('initialCartMat mismatch', None)
 
     if self.bugLev >= 5:
@@ -524,13 +583,17 @@ class ScanOutcar:
     wtPat    = r'^Coordinates +Weight$'
     numKpoint = resObj.numKpoint
 
-    # xxx this is what vasprun.xml calls "kpoints"
+    # In many OUTCAR files the following checks succeed.
+    # In a few they do not.
+    checkKpoints = True
+
     ixs = self.findLines(
       [headPat, blankPat, recipPat, wtPat], 0, 0)   # pats, numMin, numMax
 
     if len(ixs) == 1:           # if generated kpoints ...
 
-      # Get generated reciprocol coords
+      # Get kpointFracMat == generated reciprocol fractional coords.
+      # This is what vasprun.xml calls "kpoints".
       ix = ixs[0] + 4               # start of matrix
       kpMat = self.parseMatrix(     # kpoints and weights (multiplicities)
         4, ix, ix+numKpoint, 0, 4)  # ntok, rowBeg, rowEnd, colBeg, colEnd
@@ -539,6 +602,16 @@ class ScanOutcar:
       kpMults = kpMat[ :, 3]
       resObj.kpointMults = kpMults
       resObj.kpointWeights = kpMults / float( kpMults.sum())
+      if self.bugLev >= 5:
+        print 'getKpointMat: gen frac: kpointFracMat:\n%s' \
+          % (self.formatMatrix( resObj.kpointFracMat),)
+        print 'getKpointMat: gen frac: kpointMults: %s' \
+          % (resObj.kpointMults,)
+        print 'getKpointMat: gen frac: kpointWeights: %s' \
+          % (resObj.kpointWeights,)
+        print 'xxxxxx kpointFracMat = %s' % (repr(resObj.kpointFracMat),)
+        print 'xxxxxx kpointMults = %s' % (repr(resObj.kpointMults),)
+        print 'xxxxxx kpointWeights = %s' % (repr(resObj.kpointWeights),)
 
       # Get generated cartesian coords
       ixCart = ix + numKpoint + 1
@@ -549,74 +622,155 @@ class ScanOutcar:
         4, ix, ix+numKpoint, 0, 4) # ntok, rowBeg, rowEnd, colBeg, colEnd
       resObj.kpointCartMat = kpMat[ :, 0:3]
       test_kpointMults = kpMat[ :, 3]
-      if not np.allclose( test_kpointMults, resObj.kpointMults, 0, 1.e-5):
+      if not np.allclose( test_kpointMults, resObj.kpointMults, 0, 1.e-3):
         self.throwerr('kpointMults mismatch', None)
+      if self.bugLev >= 5:
+        print 'getKpointMat: gen cart: kpointCartMat:\n%s' \
+          % (self.formatMatrix( resObj.kpointCartMat),)
+        print 'getKpointMat: gen frac: test_kpointMults: %s' \
+          % (test_kpointMults,)
+        print 'xxxxxx kpointCartMat = %s' % (repr(resObj.kpointCartMat),)
+        print 'xxxxxx test_kpointMults = %s' % (repr(test_kpointMults),)
+
+      # Just check the linear algebra
+      # In many OUTCAR files the following checks succeed.
+      # In a few they do not.
+      test_kpointCartMat = self.posScale * np.dot(
+        resObj.kpointFracMat, resObj.initialRecipBasisMat)
+      if self.bugLev >= 5:
+        print 'getKpointMat: gen test_kpointCartMat:\n%s' \
+          % (self.formatMatrix( test_kpointCartMat),)
+        print 'xxxxxx test_kpointCartMat = %s' % (repr(test_kpointCartMat),)
+      if checkKpoints:
+        if not np.allclose(
+          test_kpointCartMat, resObj.kpointCartMat, 0, 1.e-3):
+          self.throwerr('test_kpointCartMat mismatch', None)
 
     # Get the actual kpoints
-    pat = r'^k-points in units of 2pi/SCALE and weight:$'
+    #     k-points in units of 2pi/SCALE and weight:
+    #  or k-points in units of 2pi/SCALE and weight: Automatic generation
+    #     0.00000000  0.00000000  0.00000000       0.016
+    #     0.08286762 -0.04784364  0.00000000       0.094
+    #     ...
+    #     0.16573524  0.00000000  0.15507665       0.094
+    #
+    #     k-points in reciprocal lattice and weights:
+    #  or k-points in reciprocal lattice and weights: Automatic generation
+    #     0.00000000  0.00000000  0.00000000       0.016
+    #     0.25000000  0.00000000  0.00000000       0.094
+    #     ...
+
+    pat = r'^k-points in units of 2pi/SCALE and weight:' \
+      + '( Automatic generation)?$'
     ixs = self.findLines( [pat], 1, 1)    # pats, numMin, numMax
     ix = ixs[0] + 1
     kpMat = self.parseMatrix(     # kpoints and weights (multiplicities)
       4, ix, ix+numKpoint, 0, 4)  # ntok, rowBeg, rowEnd, colBeg, colEnd
-    actual_kpointCartMat = kpMat[ :, 0:3]
+    actual_kpointCartMat_a = kpMat[ :, 0:3]
     wts = kpMat[ :, 3]
     # Sometimes the wts are not normalized to 1, for example in
     #   icsd_633029.cif/non-magnetic/relax_cellshape/1
     # the sum is 1.024
-    actual_kpointWeights = wts / sum( wts)
-    actual_kpointFracMat = np.dot(
-      actual_kpointCartMat, np.linalg.inv( resObj.initialRecipBasisMat))
+    actual_kpointWeights_a = wts / sum( wts)
+    actual_kpointFracMat_a = (1. / self.posScale) * np.dot(
+      actual_kpointCartMat_a, np.linalg.inv( resObj.initialRecipBasisMat))
+    if self.bugLev >= 5:
+      print 'getKpointMat: actual_kpointCartMat_a:\n%s' \
+        % (self.formatMatrix( actual_kpointCartMat_a),)
+      print 'getKpointMat: actual_kpointWeights_a: %s' \
+        % (actual_kpointWeights_a,)
+      print 'getKpointMat: actual_kpointFracMat_a:\n%s' \
+        % (self.formatMatrix( actual_kpointFracMat_a),)
 
-    # Find kpoint multiplicities by multiplying kpointWeights
-    # by the min value that makes them all integers
-    uniqWts = list( set( wts))
-    uniqWts.sort()
-    minWt = uniqWts[0]
-    factor = None
-    for ii in range(1, 10):
-      tfact = ii / float( minWt)
-      allOk = True
-      for wt in uniqWts:
-        val = tfact * wt
-        if abs( val - round(val)) > 1.e-5:
-          allOk = False
-          break
-      if allOk:
-        factor = tfact
-        break
-    if factor == None: self.throwerr('no kpointMults found', None)
-    actual_kpointMults = wts * factor
+    pat = r'^k-points in reciprocal lattice and weights:' \
+      + '( Automatic generation)?$'
+    ixs = self.findLines( [pat], 1, 1)    # pats, numMin, numMax
+    ix = ixs[0] + 1
+    kpMat = self.parseMatrix(     # kpoints and weights (multiplicities)
+      4, ix, ix+numKpoint, 0, 4)  # ntok, rowBeg, rowEnd, colBeg, colEnd
+    actual_kpointFracMat_b = kpMat[ :, 0:3]
+    wts = kpMat[ :, 3]
+    # Sometimes the wts are not normalized to 1, for example in
+    #   icsd_633029.cif/non-magnetic/relax_cellshape/1
+    # the sum is 1.024
+    actual_kpointWeights_b = wts / sum( wts)
+    actual_kpointCartMat_b = self.posScale * np.dot(
+      actual_kpointFracMat_b, resObj.initialRecipBasisMat)
+    if self.bugLev >= 5:
+      print 'getKpointMat: actual_kpointCartMat_b:\n%s' \
+        % (self.formatMatrix( actual_kpointCartMat_b),)
+      print 'getKpointMat: actual_kpointWeights_b: %s' \
+        % (actual_kpointWeights_b,)
+      print 'getKpointMat: actual_kpointFracMat_b:\n%s' \
+        % (self.formatMatrix( actual_kpointFracMat_b),)
 
-    # If we got generated points, check that they == actuals.
-    # If no generated points, use the actuals.
-    if hasattr( resObj, 'kpointFracMat'):
-      if not np.allclose(
-        actual_kpointFracMat, resObj.kpointFracMat, 0, 1.e-5):
-        self.throwerr('kpointFracMat mismatch', None)
-      if not np.allclose(
-        actual_kpointCartMat, resObj.kpointCartMat, 0, 1.e-5):
-        self.throwerr('kpointCartMat mismatch', None)
-      if not np.allclose(
-        actual_kpointMults, resObj.kpointMults, 0, 1.e-5):
-        self.throwerr('kpointMults mismatch', None)
-      if not np.allclose(
-        actual_kpointWeights, resObj.kpointWeights, 0, 1.e-5):
-        self.throwerr('kpointWeights mismatch', None)
-    else:
-      resObj.kpointFracMat = actual_kpointFracMat
-      resObj.kpointCartMat = actual_kpointCartMat
-      resObj.kpointMults   = actual_kpointMults
-      resObj.kpointWeights = actual_kpointWeights
+    # This doesn't work.  Some sets of weights don't work this way.
+    # For example, lany.projects.ppmdd.pub_data.2013_PRB_GGAUvsHSE/
+    # GGAU_defects/Al1N1/Vc_Al/OUTCAR gives 
+    # uniqWts: [0.015952143569292122, 0.030907278165503486,
+    #   0.046859421734795605, 0.093718843469591209, 0.18743768693918242]
+    # fac = 1/uniqWts[0] = 62.6875
+    # uniqWts * fac are not integers
+    #
+    ## Find kpoint multiplicities by multiplying kpointWeights
+    ## by the min value that makes them all integers
+    #wts = actual_kpointWeights_a
+    #uniqWts = list( set( wts))
+    #uniqWts.sort()
+    #minWt = uniqWts[0]
+    #if self.bugLev >= 5:
+    #  print 'getKpointMat: wts: %s' % (wts,)
+    #  print 'getKpointMat: uniqWts: %s' % (uniqWts,)
+    #  print 'getKpointMat: minWt: %s' % (minWt,)
+    #factor = None
+    #for ii in range(1, 10):
+    #  tfact = ii / float( minWt)
+    #  allOk = True
+    #  for wt in uniqWts:
+    #    val = tfact * wt
+    #    if abs( val - round(val)) > 1.e-5:
+    #      allOk = False
+    #      break
+    #  if allOk:
+    #    factor = tfact
+    #    break
+    #if factor == None: self.throwerr('no kpointMults found', None)
+    #actual_kpointMults_a = wts * factor
+    #if not np.allclose(
+    #  actual_kpointMults_a, resObj.kpointMults, 0, 1.e-3):
+    #  self.throwerr('actual_kpointMults mismatch', None)
 
-    # Just test the linear algebra
-    test_kpointFracMat = np.dot(
-      resObj.kpointCartMat, np.linalg.inv( resObj.initialRecipBasisMat))
-    test_kpointCartMat = np.dot(
-      resObj.kpointFracMat, resObj.initialRecipBasisMat)
-    if not np.allclose( test_kpointFracMat, resObj.kpointFracMat, 0, 1.e-5):
-      self.throwerr('test_kpointFracMat mismatch', None)
-    if not np.allclose( test_kpointCartMat, resObj.kpointCartMat, 0, 1.e-5):
-      self.throwerr('test_kpointCartMat mismatch', None)
+    # Check that generated points == actuals.
+    # In many OUTCAR files the following checks succeed.
+    # In a few they do not.
+    if checkKpoints:
+      if not hasattr( resObj, 'kpointFracMat'):
+        throwerr('no generated kpoints found')
+      if not np.allclose(
+        actual_kpointFracMat_a, resObj.kpointFracMat, 0, 1.e-3):
+        self.throwerr('actual_kpointFracMat_a mismatch', None)
+      if not np.allclose(
+        actual_kpointCartMat_a, resObj.kpointCartMat, 0, 1.e-3):
+        self.throwerr('actual_kpointCartMat_a mismatch', None)
+      if not np.allclose(
+        actual_kpointWeights_a, resObj.kpointWeights, 0, 1.e-3):
+        self.throwerr('actual_kpointWeights_a mismatch', None)
+
+      if not np.allclose(
+        actual_kpointFracMat_b, resObj.kpointFracMat, 0, 1.e-3):
+        self.throwerr('actual_kpointFracMat_b mismatch', None)
+      if not np.allclose(
+        actual_kpointCartMat_b, resObj.kpointCartMat, 0, 1.e-3):
+        self.throwerr('actual_kpointCartMat_b mismatch', None)
+      if not np.allclose(
+        actual_kpointWeights_b, resObj.kpointWeights, 0, 1.e-3):
+        self.throwerr('actual_kpointWeights_b mismatch', None)
+
+
+
+
+
+
 
     if self.bugLev >= 5:
       print 'getKpointMat: kpointFracMat:\n%s' \
@@ -811,7 +965,6 @@ class ScanOutcar:
     numEig = 0
     for ikp in range( numKpoint):
       numEig += numBand * resObj.kpointMults[ikp]
-      print 'xxx ikp: %d  nkp: %g  prod: %g  numEig: %g' % (ikp, resObj.kpointMults[ikp], numBand * resObj.kpointMults[ikp], numEig,)
     numEig *= 2    # for two spin levels, whether numSpin is 1 or 2
     numEig = int( round( numEig))
 
@@ -936,15 +1089,25 @@ class ScanOutcar:
     if resObj.bandgap < 0: resObj.bandgap = 0
 
     if self.bugLev >= 5:
-      print 'calcBandgaps: cbMinMat:\n%s' \
-        % (self.formatMatrix( cbMinMat),)
-      print 'calcBandgaps: cbMinVals: %s' % (resObj.cbMinVals,)
-      print 'calcBandgaps: cbMinIxs: %s' % (resObj.cbMinIxs,)
 
-      print 'calcBandgaps: vbMaxMat:\n%s' \
-        % (self.formatMatrix( vbMaxMat),)
-      print 'calcBandgaps: vbMaxVals: %s' % (resObj.vbMaxVals,)
+      print '\ncalcBandgaps: efermiCalc: %g' % (resObj.efermiCalc,)
+      for isp in range( numSpin):
+        print '\ncalcBandgaps: start isp: %d' % (isp,)
+        for ikp in range( numKpoint):
+          vval = vbMaxMat[isp][ikp]
+          cval = cbMinMat[isp][ikp]
+          vmsg = '%8.4f' % (vval,)
+          cmsg = '%8.4f' % (cval,)
+          if ikp == vbMaxIxs[isp]: vmsg += ' ***'
+          if ikp == cbMinIxs[isp]: cmsg += ' ***'
+          print '  isp: %d  ikp: %3d  vbMaxMat: %-14s  cbMinMat: %-14s' \
+            % ( isp, ikp, vmsg, cmsg,)
+        print ''
+
       print 'calcBandgaps: vbMaxIxs: %s' % (resObj.vbMaxIxs,)
+      print 'calcBandgaps: vbMaxVals: %s' % (resObj.vbMaxVals,)
+      print 'calcBandgaps: cbMinIxs: %s' % (resObj.cbMinIxs,)
+      print 'calcBandgaps: cbMinVals: %s' % (resObj.cbMinVals,)
 
       print 'calcBandgaps: bandgapDirects:   %s' % (resObj.bandgapDirects,)
       print 'calcBandgaps: bandgapIndirects: %s' % (resObj.bandgapIndirects,)
@@ -1050,7 +1213,9 @@ class ScanOutcar:
 
 #====================================================================
 
-
 # end of class ScanOutcar
 
+#====================================================================
+
+if __name__ == '__main__': main()
 

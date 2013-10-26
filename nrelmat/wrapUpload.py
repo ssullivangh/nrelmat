@@ -41,8 +41,8 @@ def badparms( msg):
   print '  -readType     <string>  outcar / xml'
   print '  -metadataSpec <string>  Metadata file to be forced on all.'
   print ''
-  print '  -requireIcsd  <boolean> no/yes: do we require that the path'
-  print '                          names of files contain ICSD info.'
+  print '  -requireIcsd  <boolean> no/yes: do we require that the file'
+  print '                          paths names contain ICSD info.'
   print ''
   print '  -keepList   <string>    File containing the absolute paths'
   print '                          of the dirs to be uploaded.'
@@ -58,6 +58,10 @@ def badparms( msg):
   print '                          the relative paths of those directories'
   print '                          to be kept.  If specified,'
   print '                          keepList must not be specified.'
+  print '                          If none of keepList, keepPatterns,'
+  print '                          or omitPattens are specified, all dirs'
+  print '                          below topDir containing a metadata'
+  print '                          file will be archived.'
   print ''
   print '  -omitPatterns           Comma separated list of'
   print '                          regular expressions matching'
@@ -97,11 +101,11 @@ def main():
                                    Default: None, meaning each archived
                                    dir must contain a metadata file.
 
-  **-readType**     string         If 'outcar', read the OUTCAR files.
+  **-readType**       string       If 'outcar', read the OUTCAR files.
                                    Else if 'xml', read the vasprun.xml files.
 
-  **-requireIcsd**    boolean      no/yes: do we require that the path
-                                   names of files contain ICSD info.
+  **-requireIcsd**    boolean      no/yes: do we require that the file
+                                   path names contain ICSD info.
                                    See notes below.
 
   **-keepList**       string       File containing the absolute paths
@@ -112,6 +116,10 @@ def main():
                                    If ``keepList`` is specified,
                                    ``keepPatterns`` and ``omitPatterns``
                                    must not be specified.
+                                   If none of keepList, keepPatterns,
+                                   or omitPattens are specified, all dirs
+                                   below topDir containing a metadata
+                                   file will be archived.
 
   **-keepPatterns**   string       Comma separated list of
                                    regular expressions matching
@@ -195,7 +203,10 @@ def main():
     badparms('with keepList, may not spec keepPatterns or omitPatterns')
   if topDir == None: badparms('missing parameter: -topDir')
   if workDir == None: badparms('missing parameter: -workDir')
-  if serverInfo == None: badparms('missing parameter: -serverInfo')
+
+  useScp = False
+  if useScp and serverInfo == None:
+    badparms('missing parameter: -serverInfo')
   absTopDir = os.path.abspath( topDir)
 
   print 'wrapUpload: func: %s' % (func,)
@@ -216,7 +227,6 @@ def main():
     'INCAR',
     'KPOINTS',
     'POSCAR',
-    'POTCAR',
   ]
 
   # Names of optional files
@@ -227,6 +237,7 @@ def main():
     'stderr',
     'stdout',
     'DOSCAR',
+    'POTCAR',
   ]
   if readType == 'xml':
     requireNames.append('vasprun.xml')
@@ -237,7 +248,7 @@ def main():
   else: badparms('invalid readType: %s' % (readType,))
 
   if func == 'upload':
-    doUpload( bugLev, metadataSpec, readType,
+    doUpload( bugLev, useScp, metadataSpec, readType,
       requireNames, optionNames, requireIcsd,
       keepList, keepPatterns, omitPatterns,
       topDir, workDir, serverInfo)
@@ -254,6 +265,7 @@ def main():
 
 def doUpload(
   bugLev,
+  useScp,
   metadataSpec,
   readType,
   requireNames,
@@ -333,18 +345,17 @@ def doUpload(
 
   '''
 
-  with open( serverInfo) as fin:
-    serverMap = json.load( fin)
-  if bugLev >= 1: print 'doUpload: serverMap: ', serverMap
-  for key in ['hostname', 'userid', 'password', 'dir']:
-    if not serverMap.has_key( key):
-      throwerr('serverInfo is missing key: %s' % (key,))
-
   absTopDir = os.path.abspath( topDir)
   metadataForce = None
   if metadataSpec != None:
     metadataForce = parseMetadata( metadataSpec)
   if bugLev >= 1: print 'doUpload: metadataForce: ', metadataForce
+
+  if not os.path.isdir( workDir):
+    throwerr('workDir does not exist: %s' % (workDir,))
+  nms = os.listdir( workDir)
+  if len(nms) != 0:
+    throwerr('workDir is not empty: %s' % (workDir,))
 
   # Get keepAbsPaths from file keepList
   # Use a set and os.path.abspath to make sure entries are unique.
@@ -533,27 +544,34 @@ def doUpload(
   with open( flagFile, 'w') as fout:
     pass   # just create the file
 
-  # Use scp to upload overFile, tarFile, flagFile.
+  if useScp:
+    # Use scp to upload overFile, tarFile, flagFile.
+    with open( serverInfo) as fin:
+      serverMap = json.load( fin)
+    if bugLev >= 1: print 'doUpload: serverMap: ', serverMap
+    for key in ['hostname', 'userid', 'password', 'dir']:
+      if not serverMap.has_key( key):
+        throwerr('serverInfo is missing key: %s' % (key,))
 
-  args = ['chmod', '660', tarFile, flagFile]
-  runSubprocess( bugLev, os.getcwd(), args, False)  # showStdout = False
+    args = ['chmod', '660', tarFile, flagFile]
+    runSubprocess( bugLev, os.getcwd(), args, False)  # showStdout = False
 
-  logit('wrapUpload: beginning scp (this could take several minutes)')
+    logit('wrapUpload: beginning scp (this could take several minutes)')
 
-  cmdLine = '/usr/bin/scp -v -p %s %s %s %s@%s:%s' \
-    % (overFile,
-    tarFile,
-    flagFile,             # flagFile must be last for wrapReceive.py
-    serverMap['userid'],
-    serverMap['hostname'],
-    serverMap['dir'])
-  if bugLev >= 1:
-    print 'wrapUpload: scp cmdLine: %s' % (cmdLine)
+    cmdLine = '/usr/bin/scp -v -p %s %s %s %s@%s:%s' \
+      % (overFile,
+      tarFile,
+      flagFile,             # flagFile must be last for wrapReceive.py
+      serverMap['userid'],
+      serverMap['hostname'],
+      serverMap['dir'])
+    if bugLev >= 1:
+      print 'wrapUpload: scp cmdLine: %s' % (cmdLine)
 
-  proc = pexpect.spawn( cmdLine)
-  proc.expect(' password: ')
-  proc.sendline( serverMap['password'])
-  proc.expect( pexpect.EOF)
+    proc = pexpect.spawn( cmdLine)
+    proc.expect(' password: ')
+    proc.sendline( serverMap['password'])
+    proc.expect( pexpect.EOF)
 
   logit('wrapUpload: Completed upload of %d directories.' % (numKeptDir,))
 
@@ -926,8 +944,9 @@ def processDir(
     try:
       icsdMap = getIcsdMap( bugLev, absTopDir, relPath)
     except Exception, exc:
-      print 'processDir: no icsd info found for absTopDir: %s' \
-        % (absTopDir,)
+      if bugLev >= 1:
+        print 'processDir: no icsd info found for absTopDir: %s' \
+          % (absTopDir,)
       if requireIcsd: throwerr(
         'icsd info not found.  absTopDir: %s  traceback:\n%s' \
         % (absTopDir, traceback.format_exc( limit=None),))
