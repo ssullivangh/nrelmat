@@ -178,11 +178,8 @@ def parseDir(
         throwerr('inFile is not a file: "%s"' % (inFile,))
       ScanXml.parseXml( bugLev, inFile, maxLev, resObj)   # fills resObj
     elif readType in [ 'outcar', 'pylada']:
-      inFile = os.path.join( inDir, 'OUTCAR')
-      if not os.path.isfile(inFile):
-        throwerr('inFile is not a file: "%s"' % (inFile,))
       if readType == 'outcar':
-        ScanOutcar.ScanOutcar( bugLev, inFile, resObj)   # fills resObj
+        scanner = ScanOutcar.ScanOutcar( bugLev, inDir, resObj)  # fills resObj
       else:    # else 'pylada'
         parsePylada( bugLev, inFile, resObj)   # fills resObj
     else: throwerr('unknown readType: %s' % (readType,))

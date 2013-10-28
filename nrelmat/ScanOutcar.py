@@ -10,9 +10,7 @@ def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
   print '  -bugLev    <int>      debug level'
-  print '  -inFile    <string>   input file'
-  print '  -posScale  <string>   Either float scale value, or the name'
-  print '                        of the POSCAR file so we can read it.'
+  print '  -inDir     <string>   input dir containing OUTCAR, INCAR, POSCAR'
   print ''
   sys.exit(1)
 
@@ -28,15 +26,12 @@ def main():
   Parameter         Type         Description
   ================  =========    ==============================================
   **-bugLev**       integer      Debug level.  Normally 0.
-  **-inFile**       string       Input file
-  **-posScale**     string       Either float scale value, or the name
-                                 of the POSCAR file so we can read it.
+  **-inDir**       s tring       Input dir containing OUTCAR, INCAR, POSCAR
   ================  =========    ==============================================
   '''
 
   bugLev = 0
-  inFile = None
-  posScaleStg = None
+  inDir = None
 
   if len(sys.argv) % 2 != 1:
     badparms('Parms must be key/value pairs')
@@ -44,22 +39,14 @@ def main():
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
     if key == '-bugLev': bugLev = int( val)
-    elif key == '-inFile': inFile = val
-    elif key == '-posScale': posScaleStg = val
+    elif key == '-inDir': inDir = val
     else: badparms('unknown key: "%s"' % (key,))
 
   if bugLev == None: badparms('parm not specified: -bugLev')
-  if inFile == None: badparms('parm not specified: -inFile')
-  if posScaleStg == None: badparms('parm not specified: -posScale')
-
-  try: posScale = float( posScaleStg)
-  except ValueError, exc:
-    with open( posScaleStg) as fin:
-      lines = fin.readlines()
-    posScale = float( lines[1].strip())
+  if inDir == None: badparms('parm not specified: -inDir')
 
   resObj = ResClass()
-  ScanOutcar( bugLev, inFile, posScale, resObj)       # fill resObj
+  scanner = ScanOutcar( bugLev, inDir, resObj)
 
 
 #====================================================================
@@ -99,11 +86,11 @@ class Sspec:
     self.tp = tp
 
     if not (self.pat.startswith('^') and self.pat.endswith('$')):
-      self.throwerr('invalid spec: %s' % (self,), None)
+      self.throwerr('invalid spec: %s' % (self,))
     if which not in ['first', 'last']:
-      self.throwerr('invalid spec: %s' % (self,), None)
-    if tp not in [ int, float]:
-      self.throwerr('invalid spec: %s' % (self,), None)
+      self.throwerr('invalid spec: %s' % (self,))
+    if tp not in [ int, float, str]:
+      self.throwerr('invalid spec: %s' % (self,))
 
     self.regex = re.compile( pat)
 
@@ -113,6 +100,8 @@ class Sspec:
         self.numMin, self.numMax, self.tp,)
     return res
 
+  def throwerr( self, msg):
+    raise Exception( msg)
 
 #====================================================================
 #====================================================================
@@ -122,11 +111,16 @@ class Sspec:
 
 class ScanOutcar:
 
-  def __init__( self, bugLev, fname, posScale, resObj):
+  def __init__( self, bugLev, inDir, resObj):
     self.bugLev = bugLev
-    self.fname = fname
-    self.posScale = posScale
+    self.inDir = inDir
 
+    # First, read POSCAR and INCAR
+    self.parseIncar( resObj)
+    self.parsePoscar( resObj)
+
+    # Now read OUTCAR
+    fname = os.path.join( inDir, 'OUTCAR')
     with open( fname) as fin:
       self.lines = fin.readlines()
     self.numLine = len( self.lines)
@@ -138,6 +132,7 @@ class ScanOutcar:
     self.getDate( resObj)
     self.getTimes( resObj)
     self.getSystem( resObj)
+    self.getCategEnergy( resObj)
     self.getTypeNames( resObj)
     self.getTypeNums( resObj)
     self.getBasisMats( resObj)
@@ -152,6 +147,132 @@ class ScanOutcar:
     self.calcMisc( resObj)
     self.calcEfermi( resObj)
     self.calcBandgaps( resObj)
+
+
+#====================================================================
+
+  def parseIncar( self, resObj):
+    fname = os.path.join( self.inDir, 'INCAR')
+    with open( fname) as fin:
+      lines = fin.readlines()
+
+    for iline in range( len( lines)):
+      line = lines[iline].strip()
+      if len(line) > 0 and not line.startswith('#'):
+        mat = re.match('^([a-zA-Z0-9]+) *= *(.*)$', line)
+        if mat == None:
+          self.throwerr('invalid line.  iline: %d  line: %s' % (iline, line,),
+            None)
+        key = mat.group(1)
+        val = mat.group(2)
+
+        ix = val.find('#')           # get rid of trailing comment
+        if ix >= 0: val = val[:ix].strip()
+
+        val = val.strip('"\'')       # strip possibly unbalanced quotes
+        resObj.__dict__[key] = val
+        if self.bugLev >= 5:
+          print 'parseIncar: %s: %s' % (key, val,)
+
+    if not resObj.__dict__.has_key('ALGO'):
+      resObj.__dict__['ALGO'] = 'Normal'
+    algo = resObj.ALGO.lower()
+    if algo == 'a': algo = 'all'
+
+    if algo in ['chi', 'gw', 'gw0', 'scgw', 'scgw0', 'diag']:
+      resObj.isGw = True
+    elif algo in [ 'all', 'conjugate', 'damped',
+      'eigenval', 'fast', 'none', 'normal',
+      'nothing', 'subrot', 'veryfast']:
+      resObj.isGw = False
+    else: self.throwerr('unknown algo: %s' % (algo,), None)
+
+
+#====================================================================
+
+
+  def parsePoscar( self, resObj):
+    fname = os.path.join( self.inDir, 'POSCAR')
+    with open( fname) as fin:
+      lines = fin.readlines()
+    for ii in range( len( lines)):
+      lines[ii] = lines[ii].strip()
+
+    iline = 0
+    sysName = lines[iline].strip('"\'')   # strip possibly unbalanced quotes
+    iline += 1
+
+    posScaleFactor = float( lines[iline])
+    iline += 1
+
+    basisList = []
+    for ii in range(3):
+      line = lines[iline]
+      iline += 1
+      toks = line.split()
+      if len(toks) != 3:
+        self.throwerr('invalid basis.  iline: %d  line: %s' % (iline, line,),
+          None)
+      basisList.append( map( float, toks))
+    basisMat = posScaleFactor * np.array( basisList, dtype=float)
+
+    # typeNames
+    # This is not documented at
+    # http://cms.mpi.univie.ac.at/vasp/vasp/POSCAR_file.html
+    # Some POSCAR files have an inserted line with the typeNames.
+    line = lines[iline]
+    if re.match('^\d+ .*$', line):   # if no typeNames, we hit typeNums
+      typeNames = None
+    else:                            # else get typeNames
+      iline += 1
+      typeNames = line.split()
+
+    # typeNums
+    line = lines[iline]
+    iline += 1
+    toks = line.split()
+    typeNums = map( int, toks)
+
+    # posType: 'direct' or 'cartesian'
+    posType = lines[iline].lower()
+    iline += 1
+
+    # fracPosMat, cartPosMat
+    posList = []
+    for ii in range( sum( typeNums)):
+      line = lines[iline]
+      iline += 1
+      toks = line.split()
+      if len(toks) != 3:
+        self.throwerr('invalid pos.  iline: %d  line: %s' % (iline, line,),
+          None)
+      posList.append( map( float, toks))
+    posMat = np.array( posList, dtype=float)
+
+    if posType in ['d', 'direct']:
+      fracPosMat = posMat
+      cartPosMat = np.dot( fracPosMat, basisMat)
+    elif posType in ['c', 'cartesian']:
+      cartPosMat = posMat * scaleFactor
+      fracPosMat = np.dot( cartPosMat, np.linalg.inv( basisMat))
+    else: self.throwerr('unknown posType: %s' % (posType,), None)
+
+    resObj.posScaleFactor = posScaleFactor
+    resObj.typeNames = typeNames
+    resObj.typeNums = typeNums
+    # Ignore the matrix items in POSCAR, as they sometimes
+    # differ from OUTCAR and the word is that OUTCAR is correct.
+    # resObj.initialBasisMat = basisMat
+    # resObj.initialFracPosMat = directMat
+    # resObj.initialCartPosMat = cartMat
+    if self.bugLev >= 5:
+      print 'parsePoscar: posScaleFactor: %s' % (resObj.posScaleFactor,)
+      print 'parsePoscar: typeNames: %s' % (typeNames,)
+      print 'parsePoscar: typeNums: %s' % (typeNums,)
+      print 'parsePoscar: unused initialBasisMat: %s' % (basisMat,)
+      print 'parsePoscar: unused initialFracPosMat: %s' % (fracPosMat,)
+      print 'parsePoscar: unused initialCartPosMat: %s' % (cartPosMat,)
+
 
 
 #====================================================================
@@ -172,6 +293,10 @@ class ScanOutcar:
       # IALGO  =     68    algorithm
       Sspec( 'ialgo', r'^IALGO *= *(\d+) +algorithm$',
         'first', 1, 1, int),
+      # ALGO = Fast
+      # ALGO    =GW        execute GW part
+      Sspec( 'algo', r'^ALGO *= *([a-zA-Z0-9]+).*$',
+        'first', 0, 1, str),
       # IBRION =      2    ionic relax: 0-MD 1-quasi-New 2-CG
       Sspec( 'ibrion', r'^IBRION *= *([-0-9]+) +ionic relax *: .*$',
         'first', 1, 1, int),
@@ -198,30 +323,26 @@ class ScanOutcar:
       Sspec( 'finalVolume_ang3', r'^volume of cell *: +([-.E0-9]+)$',
         'last', 1, 0, float),
 
-      # Spacing varies:
-      # energy without entropy =  -60.501550  energy(sigma->0) =  -60.501640
-      # energy  without entropy=  -15.051005  energy(sigma->0) =  -15.051046
-      Sspec( 'energyNoEntrp', 
-        r'^energy +without +entropy *= *([-.E0-9]+)' \
-          + r' +energy\(sigma->0\) *= *[-.E0-9]+$',
-        'last', 1, 0, float),
-
-      #   E-fermi :   6.5043     XC(G=0): -12.1737     alpha+bet :-11.7851
-      Sspec( 'efermi', r'^E-fermi *: *([-.E0-9]+) +XC.*alpha\+bet.*$',
-        'last', 1, 0, float),
     ] # specs
 
     for spec in specs:
       ixs = self.findLines( [spec.pat], spec.numMin, spec.numMax)
-      if spec.which == 'first': ix = ixs[0]
-      elif spec.which == 'last': ix = ixs[-1]
-      else: self.throwerr('invalid which in spec: %s' % (spec,), None)
-      mat = spec.regex.match( self.lines[ix])
-      value = spec.tp( mat.group(1))
-      resObj.__dict__[spec.tag] = value
+      if len(ixs) > 0:
+        if spec.which == 'first': ix = ixs[0]
+        elif spec.which == 'last': ix = ixs[-1]
+        else: self.throwerr('invalid which in spec: %s' % (spec,), None)
+        mat = spec.regex.match( self.lines[ix])
+        value = spec.tp( mat.group(1))
 
-      if self.bugLev >= 5:
-        print 'getScalars: %s: %s' % (spec.tag, value,)
+        if resObj.__dict__.has_key( spec.tag):
+          if resObj.__dict__[spec.tag] != value:
+            self.throwerr('value conflict: spec: %s  INCAR: %s  OUTCAR: %s' \
+              % (spec, resObj.__dict__[spec.tag], value,), None)
+        else:
+          resObj.__dict__[spec.tag] = value
+
+        if self.bugLev >= 5:
+          print 'getScalars: %s: %s' % (spec.tag, value,)
 
 
 #====================================================================
@@ -241,31 +362,72 @@ class ScanOutcar:
 
 #====================================================================
 
-  # iterCpuTimes
-  # iterRealTimes
+  # iterCpuTimes    (not in GW calcs)
+  # iterRealTimes   (not in GW calcs)
   # Lines are like either of:
   #   LOOP+:  cpu time   22.49: real time   24.43
   #   LOOP+:  VPU time   42.93: CPU time   43.04
+  #   LOOP+:  cpu time16935.65: real time16944.21
+  #   LOOP+:  cpu time********: real time********
+
   # In the second line, "VPU" means CPU, and "CPU" means wall time.
   # See: http://cms.mpi.univie.ac.at/vasp-forum/forum_viewtopic.php?3.336
+  #
+  # In all calcs get:
+  #                 Total CPU time used (sec):       11.725
+  #                         User time (sec):        9.392
+  #                       System time (sec):        2.334
+  #                      Elapsed time (sec):       14.468
 
   def getTimes( self, resObj):
-    pat = r'^LOOP\+ *: +[a-zA-Z]+ +time +([.0-9]+): +[a-zA-Z]+' \
-      + r' +time +([.0-9]+)$'
-    ixs = self.findLines( [pat], 1, 0)        # pats, numMin, numMax
+    pat = r'^LOOP\+ *: +[a-zA-Z]+ +time *([.0-9]+): +[a-zA-Z]+' \
+      + r' +time *([.0-9]+)$'
+    if resObj.isGw:
+      resObj.iterCpuTimes = None
+      resObj.iterRealTimes = None
+    else:
+      # numMin should be 1, but fortran prints *** for big nums.
+      ixs = self.findLines( [pat], 0, 0)        # pats, numMin, numMax
+      if len(ixs) == 0:
+        resObj.iterCpuTimes = None
+        resObj.iterRealTimes = None
+      else:
+        cpuTimes = []
+        realTimes = []
+        for ix in ixs:
+          mat = re.match( pat, self.lines[ix])
+          cpuTimes.append( float( mat.group(1)))
+          realTimes.append( float( mat.group(2)))
+        resObj.iterCpuTimes = cpuTimes
+        resObj.iterRealTimes = realTimes
 
-    cpuTimes = []
-    realTimes = []
-    for ix in ixs:
-      mat = re.match( pat, self.lines[ix])
-      cpuTimes.append( float( mat.group(1)))
-      realTimes.append( float( mat.group(2)))
-    resObj.iterCpuTimes = cpuTimes
-    resObj.iterRealTimes = realTimes
+    pat = r'^Total CPU time used \(sec\): +([.0-9]+)$'
+    ixs = self.findLines( [pat], 1, 1)        # pats, numMin, numMax
+    mat = re.match( pat, self.lines[ixs[0]])
+    resObj.totalCpuTimeSec = mat.group(0)
+
+    pat = r'^User time \(sec\): +([.0-9]+)$'
+    ixs = self.findLines( [pat], 1, 1)        # pats, numMin, numMax
+    mat = re.match( pat, self.lines[ixs[0]])
+    resObj.userTimeSec = mat.group(0)
+
+    pat = r'^System time \(sec\): +([.0-9]+)$'
+    ixs = self.findLines( [pat], 1, 1)        # pats, numMin, numMax
+    mat = re.match( pat, self.lines[ixs[0]])
+    resObj.systemTimeSec = mat.group(0)
+
+    pat = r'^Elapsed time \(sec\): +([.0-9]+)$'
+    ixs = self.findLines( [pat], 1, 1)        # pats, numMin, numMax
+    mat = re.match( pat, self.lines[ixs[0]])
+    resObj.elapsedTimeSec = mat.group(0)
 
     if self.bugLev >= 5:
       print 'getTimes: iterCpuTimes: %s' % (resObj.iterCpuTimes,)
       print 'getTimes: iterRealTimes: %s' % (resObj.iterRealTimes,)
+      print 'getTimes: totalCpuTimeSec: %s' % (resObj.totalCpuTimeSec,)
+      print 'getTimes: userTimeSec: %s' % (resObj.userTimeSec,)
+      print 'getTimes: systemTimeSec: %s' % (resObj.systemTimeSec,)
+      print 'getTimes: elapsedTimeSec: %s' % (resObj.elapsedTimeSec,)
 
 #====================================================================
 
@@ -281,6 +443,38 @@ class ScanOutcar:
 
     if self.bugLev >= 5:
       print 'getSystem: systemName: %s' % (resObj.systemName,)
+
+#====================================================================
+
+  # For doc on ALGO see:
+  # http://cms.mpi.univie.ac.at/vasp/vasp/Recipe_selfconsistent_GW_calculations.html
+  # http://cms.mpi.univie.ac.at/vasp/vasp/Recipe_GW_calculations.html
+  # http://cms.mpi.univie.ac.at/wiki/index.php/ALGO
+
+  def getCategEnergy( self, resObj):
+
+    if resObj.isGw:
+      resObj.energyNoEntrp = None
+      resObj.efermi = None
+
+    else:
+      # Spacing varies:
+      # energy without entropy =  -60.501550  energy(sigma->0) =  -60.501640
+      # energy  without entropy=  -15.051005  energy(sigma->0) =  -15.051046
+
+      pat = r'^energy +without +entropy *= *([-.E0-9]+)' \
+        + r' +energy\(sigma->0\) *= *[-.E0-9]+$'
+      ixs = self.findLines( [pat], 1, 0)        # pats, numMin, numMax
+      ix = ixs[-1]
+      mat = re.match( pat, self.lines[ix])
+      resObj.energyNoEntrp = float( mat.group(1))
+
+      #   E-fermi :   6.5043     XC(G=0): -12.1737     alpha+bet :-11.7851
+      pat = r'^E-fermi *: *([-.E0-9]+) +XC.*alpha\+bet.*$'
+      ixs = self.findLines( [pat], 1, 0)        # pats, numMin, numMax
+      ix = ixs[-1]
+      mat = re.match( pat, self.lines[ix])
+      resObj.efermi = float( mat.group(1))
 
 #====================================================================
 
@@ -301,7 +495,13 @@ class ScanOutcar:
       mat = regexa.match( line)
       if mat != None:
         typeNames.append( mat.group( 1))
-    resObj.typeNames = typeNames
+
+    if resObj.typeNames == None:   # if POSCAR didn't have typeNames
+      resObj.typeNames = typeNames
+    else:
+      if typeNames != resObj.typeNames:
+        self.throwerr('typeNames mismatch.  POSCAR: %s  OUTCAR: %s' \
+          % (resObj.typeNames, typeNames,), None)
 
     if self.bugLev >= 5:
       print 'getTypeNames: typeNames: %s' % (resObj.typeNames,)
@@ -314,7 +514,10 @@ class ScanOutcar:
     pat = r'^ions per type *= '
     ixs = self.findLines( [pat], 1, 1)        # pats, numMin, numMax
     toks = self.lines[ixs[0]].split()
-    resObj.typeNums = map( int, toks[4:])
+    typeNums = map( int, toks[4:])
+    if typeNums != resObj.typeNums:
+      self.throwerr('typeNums mismatch.  POSCAR: %s  OUTCAR: %s' \
+        % (resObj.typeNums, typeNums,), None)
     resObj.numAtom = sum( resObj.typeNums)
 
     if self.bugLev >= 5:
@@ -333,28 +536,46 @@ class ScanOutcar:
     ixs = self.findLines( [pat], 2, 0)        # pats, numMin, numMax
 
     ix = ixs[0]  # initial
-    resObj.initialBasisMat = self.parseMatrix(
+    initialBasisMat = self.parseMatrix(
       6, ix+1, ix+4, 0, 3)       # ntok, rowBeg, rowEnd, colBeg, colEnd
-    resObj.initialRecipBasisMat = self.parseMatrix(
+    initialRecipBasisMat = self.parseMatrix(
       6, ix+1, ix+4, 3, 6)       # ntok, rowBeg, rowEnd, colBeg, colEnd
+
+    # The basisMats can differ from POSCAR by 1.e-1 or so.  Why?
+    # Use the OUTCAR version.
+    resObj.initialBasisMat = initialBasisMat
+    resObj.initialRecipBasisMat = initialRecipBasisMat
 
     ix = ixs[-1]  # final
     # In vasprun.xml and OUTCAR, the basis vectors are rows.
+    # In PyLada, Mayeul uses the transpose.
     resObj.finalBasisMat = self.parseMatrix(
       6, ix+1, ix+4, 0, 3)       # ntok, rowBeg, rowEnd, colBeg, colEnd
     resObj.finalRecipBasisMat = self.parseMatrix(
       6, ix+1, ix+4, 3, 6)       # ntok, rowBeg, rowEnd, colBeg, colEnd
 
+    # Test the linear algebra
+    test_initialRecip = np.linalg.inv( resObj.initialBasisMat).T
+    test_finalRecip = np.linalg.inv( resObj.finalBasisMat).T
+
     if self.bugLev >= 5:
       print 'getBasisMats: initialBasisMat:\n%s' \
-        % (self.formatMatrix( resObj.initialBasisMat),)
+        % (repr( resObj.initialBasisMat),)
       print 'getBasisMats: initialRecipBasisMat:\n%s' \
-        % (self.formatMatrix( resObj.initialRecipBasisMat),)
-      print 'getBasisMats: finalBasisMat:\n%s' \
-        % (self.formatMatrix( resObj.finalBasisMat),)
-      print 'getBasisMats: finalRecipBasisMat:\n%s' \
-        % (self.formatMatrix( resObj.finalRecipBasisMat),)
+        % (repr( resObj.initialRecipBasisMat),)
+      print 'getBasisMats: test_initialRecip:\n%s' \
+        % (repr( test_initialRecip),)
 
+      print 'getBasisMats: finalBasisMat:\n%s' \
+        % (repr( resObj.finalBasisMat),)
+      print 'getBasisMats: finalRecipBasisMat:\n%s' \
+        % (repr( resObj.finalRecipBasisMat),)
+      print 'getBasisMats: test_finalRecip:\n%s' \
+        % (repr( test_finalRecip),)
+
+    # Test the linear algebra
+    self.checkClose( resObj.initialRecipBasisMat, test_initialRecip, 1.e-3)
+    self.checkClose( resObj.finalRecipBasisMat, test_finalRecip, 1.e-3)
 
 #====================================================================
 
@@ -372,33 +593,35 @@ class ScanOutcar:
 
     ixs = self.findLines( [patf], 1, 1)  # pats, numMin, numMax
     ix = ixs[0]
-    resObj.initialFracPosMat = self.parseMatrix(
+    initialFracPosMat = self.parseMatrix(
       3, ix+1, ix+1+resObj.numAtom, 0, 3)
       # ntok, rowBeg, rowEnd, colBeg, colEnd
+    # The posMats can differ by 1.e-1 or so.  Why?
+    # Use the OUTCAR version.
+    resObj.initialFracPosMat = initialFracPosMat
 
     ixs = self.findLines( [patc], 1, 1)  # pats, numMin, numMax
     ix = ixs[0]
-    resObj.initialCartPosMat = self.parseMatrix(
+    initialCartPosMat = self.parseMatrix(
       3, ix+1, ix+1+resObj.numAtom, 0, 3)
       # ntok, rowBeg, rowEnd, colBeg, colEnd
+    # The posMats can differ by 1.e-1 or so.  Why?
+    # Use the OUTCAR version.
+    resObj.initialCartPosMat = initialCartPosMat
 
-    # Just test the linear algebra
+    # Test the linear algebra
     test_initialFracPosMat = np.dot(
-      resObj.initialCartPosMat, np.linalg.inv( resObj.initialBasisMat))
+      initialCartPosMat, np.linalg.inv( resObj.initialBasisMat))
     test_initialCartPosMat = np.dot(
-      resObj.initialFracPosMat, resObj.initialBasisMat)
-    if not np.allclose(
-      test_initialFracPosMat, resObj.initialFracPosMat, 0, 1.e-3):
-      self.throwerr('initialFracMat mismatch', None)
-    if not np.allclose(
-      test_initialCartPosMat, resObj.initialCartPosMat, 0, 1.e-3):
-      self.throwerr('initialCartMat mismatch', None)
+      initialFracPosMat, resObj.initialBasisMat)
+    self.checkClose( initialFracPosMat, test_initialFracPosMat, 1.e-3)
+    self.checkClose( initialCartPosMat, test_initialCartPosMat, 1.e-3)
 
     if self.bugLev >= 5:
       print 'getInitialPositions: initialFracPosMat:\n%s' \
-        % (self.formatMatrix( resObj.initialFracPosMat),)
+        % (self.formatMatrix( initialFracPosMat),)
       print 'getInitialPositions: initialCartPosMat:\n%s' \
-        % (self.formatMatrix( resObj.initialCartPosMat),)
+        % (self.formatMatrix( initialCartPosMat),)
 
 
 #====================================================================
@@ -411,20 +634,27 @@ class ScanOutcar:
   #   2.23430  0.66221  5.03287       0.017324   0.003318   -0.014394
   #   ...
   #   ------------------------------------------------------------------
+  #
+  # Not found in gw calcs.
 
   def getFinalPositionsForce( self, resObj):
     pat = r'^POSITION +TOTAL-FORCE \(eV/Angst\)$'
-    ixs = self.findLines( [pat], 1, 0)     # pats, numMin, numMax
-    ix = ixs[-1]    # last one
-    resObj.finalCartPosMat = self.parseMatrix(
-      6, ix+2, ix+2+resObj.numAtom, 0, 3)
-      # ntok, rowBeg, rowEnd, colBeg, colEnd
-    resObj.finalForceMat_ev_ang = self.parseMatrix(
-      6, ix+2, ix+2+resObj.numAtom, 3, 6)
-      # ntok, rowBeg, rowEnd, colBeg, colEnd
+    if resObj.isGw:
+      resObj.finalFracPosMat = None
+      resObj.finalCartPosMat = None
+      resObj.finalForceMat_ev_ang = None
+    else:
+      ixs = self.findLines( [pat], 1, 0)     # pats, numMin, numMax
+      ix = ixs[-1]    # last one
+      resObj.finalCartPosMat = self.parseMatrix(
+        6, ix+2, ix+2+resObj.numAtom, 0, 3)
+        # ntok, rowBeg, rowEnd, colBeg, colEnd
+      resObj.finalForceMat_ev_ang = self.parseMatrix(
+        6, ix+2, ix+2+resObj.numAtom, 3, 6)
+        # ntok, rowBeg, rowEnd, colBeg, colEnd
 
-    resObj.finalFracPosMat = np.dot(
-      resObj.finalCartPosMat, np.linalg.inv( resObj.finalBasisMat))
+      resObj.finalFracPosMat = np.dot(
+        resObj.finalCartPosMat, np.linalg.inv( resObj.finalBasisMat))
 
     if self.bugLev >= 5:
       print 'getFinalPositionsForce: finalCartPosMat:\n%s' \
@@ -453,47 +683,54 @@ class ScanOutcar:
   #   Total       1.15189    1.15278    1.15256   0.00410   0.00063   0.00105
   #   in kB      96.62361   96.69864   96.68018   0.34362   0.05255   0.08820
   #   external pressure =       96.67 kB  Pullay stress =        0.00 kB
+  #
+  # Not in gw calcs.
 
   def getStressMat( self, resObj):
     pat = r'^FORCE on cell *= *-STRESS in cart. coord. +units \(eV\) *:$'
-    ixs = self.findLines( [pat], 1, 0)        # pats, numMin, numMax
-    ix = ixs[-1]    # last one
+    if resObj.isGw:
+      resObj.finalStressMat_ev = None
+      resObj.finalStressMat_kbar = None
+      resObj.finalPressure_kbar = None
+    else:
+      ixs = self.findLines( [pat], 1, 0)        # pats, numMin, numMax
+      ix = ixs[-1]    # last one
 
-    # Find the "Total" and "in kB" lines
-    evline = None
-    kbline = None
-    for ii in range(ix+1, ix + 16):
-      line = self.lines[ii]
-      if re.match(r'^Total( +[-.E0-9]+){6}$', line): evline = ii
-      if re.match(r'^in kB( +[-.E0-9]+){6}$', line): kbline = ii
-    if evline == None: self.throwerr('unknown stress ev', ix)
-    if kbline == None: self.throwerr('unknown stress kb', ix)
+      # Find the "Total" and "in kB" lines
+      evline = None
+      kbline = None
+      for ii in range(ix+1, ix + 16):
+        line = self.lines[ii]
+        if re.match(r'^Total( +[-.E0-9]+){6}$', line): evline = ii
+        if re.match(r'^in kB( +[-.E0-9]+){6}$', line): kbline = ii
+      if evline == None: self.throwerr('unknown stress ev', ix)
+      if kbline == None: self.throwerr('unknown stress kb', ix)
 
-    # Extract tokens from the "Total" and "in kB" lines
-    evtoks = self.lines[ evline].split()[1:]  # skip 'Total'
-    kbtoks = self.lines[ kbline].split()[2:]  # skip 'in kB'
-    if len( evtoks) != 6: self.throwerr('unknown stress evtoks', evline)
-    if len( kbtoks) != 6: self.throwerr('unknown stress kbtoks', kbline)
-    evs = map( float, evtoks)
-    kbs = map( float, kbtoks)
+      # Extract tokens from the "Total" and "in kB" lines
+      evtoks = self.lines[ evline].split()[1:]  # skip 'Total'
+      kbtoks = self.lines[ kbline].split()[2:]  # skip 'in kB'
+      if len( evtoks) != 6: self.throwerr('unknown stress evtoks', evline)
+      if len( kbtoks) != 6: self.throwerr('unknown stress kbtoks', kbline)
+      evs = map( float, evtoks)
+      kbs = map( float, kbtoks)
 
-    # Create 3x3 matrices for ev and kb stress
-    evstress = np.zeros( [3, 3], dtype=float)
-    kbstress = np.zeros( [3, 3], dtype=float)
-    # Add in the terms XX, YY, ZZ
-    for ii in range(3):
-      evstress[ii,ii] += evs[ii]
-      kbstress[ii,ii] += kbs[ii]
-    evstress[1,0] = evstress[0,1] = evs[3]    # XY
-    kbstress[1,0] = kbstress[0,1] = kbs[3]    # XY
-    evstress[2,0] = evstress[0,2] = evs[5]    # XY
-    kbstress[2,0] = kbstress[0,2] = kbs[5]    # XY
-    evstress[2,1] = evstress[1,2] = evs[4]    # YZ
-    kbstress[2,1] = kbstress[1,2] = kbs[4]    # YZ
+      # Create 3x3 matrices for ev and kb stress
+      evstress = np.zeros( [3, 3], dtype=float)
+      kbstress = np.zeros( [3, 3], dtype=float)
+      # Add in the terms XX, YY, ZZ
+      for ii in range(3):
+        evstress[ii,ii] += evs[ii]
+        kbstress[ii,ii] += kbs[ii]
+      evstress[1,0] = evstress[0,1] = evs[3]    # XY
+      kbstress[1,0] = kbstress[0,1] = kbs[3]    # XY
+      evstress[2,0] = evstress[0,2] = evs[5]    # XY
+      kbstress[2,0] = kbstress[0,2] = kbs[5]    # XY
+      evstress[2,1] = evstress[1,2] = evs[4]    # YZ
+      kbstress[2,1] = kbstress[1,2] = kbs[4]    # YZ
 
-    resObj.finalStressMat_ev = evstress
-    resObj.finalStressMat_kbar = kbstress
-    resObj.finalPressure_kbar = kbstress.diagonal().sum() / 3.0
+      resObj.finalStressMat_ev = evstress
+      resObj.finalStressMat_kbar = kbstress
+      resObj.finalPressure_kbar = kbstress.diagonal().sum() / 3.0
 
     if self.bugLev >= 5:
       print 'getStressMat: finalStressMat_ev:\n%s' \
@@ -583,70 +820,59 @@ class ScanOutcar:
     wtPat    = r'^Coordinates +Weight$'
     numKpoint = resObj.numKpoint
 
-    # In many OUTCAR files the following checks succeed.
-    # In a few they do not.
-    checkKpoints = True
-
     ixs = self.findLines(
-      [headPat, blankPat, recipPat, wtPat], 0, 0)   # pats, numMin, numMax
+      [headPat, blankPat, recipPat, wtPat], 1, 0)   # pats, numMin, numMax
 
-    if len(ixs) == 1:           # if generated kpoints ...
+    # Get kpointFracMat == generated reciprocol fractional coords.
+    # This is what vasprun.xml calls "kpoints".
+    # If there are multiple occurances use the first.
+    ix = ixs[0] + 4               # start of matrix
+    kpMat = self.parseMatrix(     # kpoints and weights (multiplicities)
+      4, ix, ix+numKpoint, 0, 4)  # ntok, rowBeg, rowEnd, colBeg, colEnd
+    resObj.kpointFracMat = kpMat[ :, 0:3]
 
-      # Get kpointFracMat == generated reciprocol fractional coords.
-      # This is what vasprun.xml calls "kpoints".
-      ix = ixs[0] + 4               # start of matrix
-      kpMat = self.parseMatrix(     # kpoints and weights (multiplicities)
-        4, ix, ix+numKpoint, 0, 4)  # ntok, rowBeg, rowEnd, colBeg, colEnd
-      resObj.kpointFracMat = kpMat[ :, 0:3]
+    kpMults = kpMat[ :, 3]
+    resObj.kpointMults = kpMults
+    resObj.kpointWeights = kpMults / float( kpMults.sum())
+    if self.bugLev >= 5:
+      print 'getKpointMat: gen frac: kpointMults: %s' \
+        % (resObj.kpointMults,)
+      print 'getKpointMat: gen frac: kpointWeights: %s' \
+        % (resObj.kpointWeights,)
+      print 'getKpointMat: gen frac: kpointFracMat:\n%s' \
+        % (resObj.kpointFracMat,)
 
-      kpMults = kpMat[ :, 3]
-      resObj.kpointMults = kpMults
-      resObj.kpointWeights = kpMults / float( kpMults.sum())
-      if self.bugLev >= 5:
-        print 'getKpointMat: gen frac: kpointFracMat:\n%s' \
-          % (self.formatMatrix( resObj.kpointFracMat),)
-        print 'getKpointMat: gen frac: kpointMults: %s' \
-          % (resObj.kpointMults,)
-        print 'getKpointMat: gen frac: kpointWeights: %s' \
-          % (resObj.kpointWeights,)
-        print 'xxxxxx kpointFracMat = %s' % (repr(resObj.kpointFracMat),)
-        print 'xxxxxx kpointMults = %s' % (repr(resObj.kpointMults),)
-        print 'xxxxxx kpointWeights = %s' % (repr(resObj.kpointWeights),)
+    # Get generated cartesian coords
+    ixCart = ix + numKpoint + 1
+    ixs = self.findLines( [cartPat, wtPat], 1, 0)   # pats, numMin, numMax
+    if ixs[0] != ixCart: self.throwerr('kpoint format', ixCart)
+    ix = ixCart + 2              # start of matrix
+    kpMat = self.parseMatrix(    # kpoints and weights (multiplicities)
+      4, ix, ix+numKpoint, 0, 4) # ntok, rowBeg, rowEnd, colBeg, colEnd
+    resObj.kpointCartMat = kpMat[ :, 0:3]
+    test_kpointMults = kpMat[ :, 3]
+    self.checkClose( resObj.kpointMults, test_kpointMults, 1.e-3)
+    if self.bugLev >= 5:
+      print 'getKpointMat: gen frac: test_kpointMults: %s' \
+        % (test_kpointMults,)
+      print 'getKpointMat: gen cart: kpointCartMat:\n%s' \
+        % (resObj.kpointCartMat,)
+      print 'xxxxxx kpointCartMat = %s' % (repr(resObj.kpointCartMat),)
+      print 'xxxxxx test_kpointMults = %s' % (repr(test_kpointMults),)
 
-      # Get generated cartesian coords
-      ixCart = ix + numKpoint + 1
-      ixs = self.findLines( [cartPat, wtPat], 1, 1)   # pats, numMin, numMax
-      if ixs[0] != ixCart: self.throwerr('kpoint format', ixCart)
-      ix = ixCart + 2              # start of matrix
-      kpMat = self.parseMatrix(    # kpoints and weights (multiplicities)
-        4, ix, ix+numKpoint, 0, 4) # ntok, rowBeg, rowEnd, colBeg, colEnd
-      resObj.kpointCartMat = kpMat[ :, 0:3]
-      test_kpointMults = kpMat[ :, 3]
-      if not np.allclose( test_kpointMults, resObj.kpointMults, 0, 1.e-3):
-        self.throwerr('kpointMults mismatch', None)
-      if self.bugLev >= 5:
-        print 'getKpointMat: gen cart: kpointCartMat:\n%s' \
-          % (self.formatMatrix( resObj.kpointCartMat),)
-        print 'getKpointMat: gen frac: test_kpointMults: %s' \
-          % (test_kpointMults,)
-        print 'xxxxxx kpointCartMat = %s' % (repr(resObj.kpointCartMat),)
-        print 'xxxxxx test_kpointMults = %s' % (repr(test_kpointMults),)
-
-      # Just check the linear algebra
-      # In many OUTCAR files the following checks succeed.
-      # In a few they do not.
-      test_kpointCartMat = self.posScale * np.dot(
-        resObj.kpointFracMat, resObj.initialRecipBasisMat)
-      if self.bugLev >= 5:
-        print 'getKpointMat: gen test_kpointCartMat:\n%s' \
-          % (self.formatMatrix( test_kpointCartMat),)
-        print 'xxxxxx test_kpointCartMat = %s' % (repr(test_kpointCartMat),)
-      if checkKpoints:
-        if not np.allclose(
-          test_kpointCartMat, resObj.kpointCartMat, 0, 1.e-3):
-          self.throwerr('test_kpointCartMat mismatch', None)
+    # Test the linear algebra
+    test_kpointCartMat = resObj.posScaleFactor * np.dot(
+      resObj.kpointFracMat, resObj.initialRecipBasisMat)
+    if self.bugLev >= 5:
+      print 'getKpointMat: gen test_kpointCartMat:\n%s' \
+        % (test_kpointCartMat,)
+      print 'xxxxxx test_kpointCartMat = %s' % (repr(test_kpointCartMat),)
+    # This can vary by nearly 0.01, for example
+    # in /projects/ppmdd/pub_data/2013_PRB_GGAUvsHSE/HSE+GW/Zn1O1_gw
+    self.checkClose( resObj.kpointCartMat, test_kpointCartMat, 1.e-1)
 
     # Get the actual kpoints
+    #
     #     k-points in units of 2pi/SCALE and weight:
     #  or k-points in units of 2pi/SCALE and weight: Automatic generation
     #     0.00000000  0.00000000  0.00000000       0.016
@@ -672,15 +898,15 @@ class ScanOutcar:
     #   icsd_633029.cif/non-magnetic/relax_cellshape/1
     # the sum is 1.024
     actual_kpointWeights_a = wts / sum( wts)
-    actual_kpointFracMat_a = (1. / self.posScale) * np.dot(
+    actual_kpointFracMat_a = (1. / resObj.posScaleFactor) * np.dot(
       actual_kpointCartMat_a, np.linalg.inv( resObj.initialRecipBasisMat))
     if self.bugLev >= 5:
-      print 'getKpointMat: actual_kpointCartMat_a:\n%s' \
-        % (self.formatMatrix( actual_kpointCartMat_a),)
       print 'getKpointMat: actual_kpointWeights_a: %s' \
         % (actual_kpointWeights_a,)
+      print 'getKpointMat: actual_kpointCartMat_a:\n%s' \
+        % (actual_kpointCartMat_a,)
       print 'getKpointMat: actual_kpointFracMat_a:\n%s' \
-        % (self.formatMatrix( actual_kpointFracMat_a),)
+        % (actual_kpointFracMat_a,)
 
     pat = r'^k-points in reciprocal lattice and weights:' \
       + '( Automatic generation)?$'
@@ -694,15 +920,15 @@ class ScanOutcar:
     #   icsd_633029.cif/non-magnetic/relax_cellshape/1
     # the sum is 1.024
     actual_kpointWeights_b = wts / sum( wts)
-    actual_kpointCartMat_b = self.posScale * np.dot(
+    actual_kpointCartMat_b = resObj.posScaleFactor * np.dot(
       actual_kpointFracMat_b, resObj.initialRecipBasisMat)
     if self.bugLev >= 5:
-      print 'getKpointMat: actual_kpointCartMat_b:\n%s' \
-        % (self.formatMatrix( actual_kpointCartMat_b),)
       print 'getKpointMat: actual_kpointWeights_b: %s' \
         % (actual_kpointWeights_b,)
+      print 'getKpointMat: actual_kpointCartMat_b:\n%s' \
+        % (actual_kpointCartMat_b,)
       print 'getKpointMat: actual_kpointFracMat_b:\n%s' \
-        % (self.formatMatrix( actual_kpointFracMat_b),)
+        % (actual_kpointFracMat_b,)
 
     # This doesn't work.  Some sets of weights don't work this way.
     # For example, lany.projects.ppmdd.pub_data.2013_PRB_GGAUvsHSE/
@@ -736,49 +962,20 @@ class ScanOutcar:
     #    break
     #if factor == None: self.throwerr('no kpointMults found', None)
     #actual_kpointMults_a = wts * factor
-    #if not np.allclose(
-    #  actual_kpointMults_a, resObj.kpointMults, 0, 1.e-3):
-    #  self.throwerr('actual_kpointMults mismatch', None)
+    #self.checkClose( resObj.kpointMults, actual_kpointMults_a, 1.e-3)
 
     # Check that generated points == actuals.
-    # In many OUTCAR files the following checks succeed.
-    # In a few they do not.
-    if checkKpoints:
-      if not hasattr( resObj, 'kpointFracMat'):
-        throwerr('no generated kpoints found')
-      if not np.allclose(
-        actual_kpointFracMat_a, resObj.kpointFracMat, 0, 1.e-3):
-        self.throwerr('actual_kpointFracMat_a mismatch', None)
-      if not np.allclose(
-        actual_kpointCartMat_a, resObj.kpointCartMat, 0, 1.e-3):
-        self.throwerr('actual_kpointCartMat_a mismatch', None)
-      if not np.allclose(
-        actual_kpointWeights_a, resObj.kpointWeights, 0, 1.e-3):
-        self.throwerr('actual_kpointWeights_a mismatch', None)
+    if not hasattr( resObj, 'kpointFracMat'):
+      self.throwerr('no generated kpoints found', None)
+    self.checkClose( resObj.kpointWeights, actual_kpointWeights_a, 1.e-3)
+    self.checkClose( resObj.kpointFracMat, actual_kpointFracMat_a, 1.e-2)
+    self.checkClose( resObj.kpointCartMat, actual_kpointCartMat_a, 1.e-3)
 
-      if not np.allclose(
-        actual_kpointFracMat_b, resObj.kpointFracMat, 0, 1.e-3):
-        self.throwerr('actual_kpointFracMat_b mismatch', None)
-      if not np.allclose(
-        actual_kpointCartMat_b, resObj.kpointCartMat, 0, 1.e-3):
-        self.throwerr('actual_kpointCartMat_b mismatch', None)
-      if not np.allclose(
-        actual_kpointWeights_b, resObj.kpointWeights, 0, 1.e-3):
-        self.throwerr('actual_kpointWeights_b mismatch', None)
-
-
-
-
-
-
+    self.checkClose( resObj.kpointWeights, actual_kpointWeights_b, 1.e-3)
+    self.checkClose( resObj.kpointFracMat, actual_kpointFracMat_b, 1.e-3)
+    self.checkClose( resObj.kpointCartMat, actual_kpointCartMat_b, 1.e-2)
 
     if self.bugLev >= 5:
-      print 'getKpointMat: kpointFracMat:\n%s' \
-        % (self.formatMatrix( resObj.kpointFracMat),)
-      print 'getKpointMat: kpointCartMat:\n%s' \
-        % (self.formatMatrix( resObj.kpointCartMat),)
-      print 'getKpointMat: kpointMults: %s' % (resObj.kpointMults,)
-      print 'getKpointMat: kpointWeights: %s' % (resObj.kpointWeights,)
       print 'getKpointMat: numKpoint: %d' % (numKpoint,)
       print 'getKpointMat: kpointMults sum:  %g' \
         % (resObj.kpointMults.sum(),)
@@ -834,41 +1031,49 @@ class ScanOutcar:
     eigenMat = np.zeros([ numSpin, numKpoint, numBand])
     occupMat = np.zeros([ numSpin, numKpoint, numBand])
 
-    if len(compIxs) == 0:         # if no spin components ...
+    if len(compIxs) == 0:         # if no spin components, or gw calc ...
       if numSpin != 1: self.throwerr('numSpin mismatch', None)
     else:                         # else we have spin components ...
       if numSpin != 2: self.throwerr('numSpin mismatch', None)
 
-    firstIxs = self.findLines( [kpFirstPat, bandPat], 1, 0)
-    for isp in range( numSpin):
-      istart = firstIxs[ -numSpin + isp]    # use the last
-      for ikp in range( numKpoint):
-        # Parse one k-point section, for numBand lines
-        isection = istart + 2 + ikp * (3 + numBand)
-        tmat = self.parseMatrix(
-          3, isection, isection + numBand, 1, 3) # ntok, rBeg, rEnd, cBeg, cEnd
-        eigenMat[ isp, ikp, 0:numBand] = tmat[ 0:numBand, 0]  # col 0: eigen
-        occupMat[ isp, ikp, 0:numBand] = tmat[ 0:numBand, 1]  # col 1: occup
+    # Not found in gw calc
+    if resObj.isGw:
+      resObj.eigenMat = None
+      resObj.occupMat = None
+      if self.bugLev >= 5:
+        print 'getEigenMat: eigenMat: None  occupMat: None'
+    else:
+      firstIxs = self.findLines( [kpFirstPat, bandPat], 1, 0)
+      for isp in range( numSpin):
+        istart = firstIxs[ -numSpin + isp]    # use the last
+        for ikp in range( numKpoint):
+          # Parse one k-point section, for numBand lines
+          isection = istart + 2 + ikp * (3 + numBand)
+          tmat = self.parseMatrix(
+            3, isection, isection + numBand, 1, 3)  # ntok,rBeg,rEnd,cBeg,cEnd
+          eigenMat[ isp, ikp, 0:numBand] = tmat[ 0:numBand, 0]  # col 0: eigen
+          occupMat[ isp, ikp, 0:numBand] = tmat[ 0:numBand, 1]  # col 1: occup
 
-    resObj.eigenMat = eigenMat
-    resObj.occupMat = occupMat
+      resObj.eigenMat = eigenMat
+      resObj.occupMat = occupMat
 
-    if self.bugLev >= 5:
-      for isp in range( resObj.numSpin):
-        print 'getEigenMat: isp: %d  eigenMat:\n%s' \
-          % (isp, self.formatMatrix( resObj.eigenMat[isp]),)
-      for isp in range( resObj.numSpin):
-        print 'getEigenMat: isp: %d  occupMat:\n%s' \
-          % (isp, self.formatMatrix( resObj.occupMat[isp]),)
+      if self.bugLev >= 5:
+        for isp in range( resObj.numSpin):
+          print 'getEigenMat: isp: %d  eigenMat:\n%s' \
+            % (isp, resObj.eigenMat[isp],)
+        for isp in range( resObj.numSpin):
+          print 'getEigenMat: isp: %d  occupMat:\n%s' \
+            % (isp, resObj.occupMat[isp],)
 
 #====================================================================
 
 
   def calcMisc( self, resObj):
 
-    resObj.iterTotalTime = sum( resObj.iterRealTimes)
+    if resObj.iterRealTimes == None: resObj.iterTotalTime = None
+    else: resObj.iterTotalTime = sum( resObj.iterRealTimes)
     if self.bugLev >= 5:
-      print 'calcMisc: iterTotalTime: %g' % (resObj.iterTotalTime,)
+      print 'calcMisc: iterTotalTime: %s' % (resObj.iterTotalTime,)
 
 
     algoMap = {
@@ -942,189 +1147,202 @@ class ScanOutcar:
 #====================================================================
 
   def calcEfermi( self, resObj):
+    if resObj.isGw:
+      resObj.efermiCalc = None
 
-    # efermiCalc
-    # Make an array allEigs of all the eigenvalues for all the
-    # kpoints, with each eigenvalue replicated by the associated
-    # kpoint weight.
-    # Further, if ispin == 1 (non spin polarized),
-    # replicate each eigenvalue again.
-    #
-    # Sort allEigs by increasing value.
-    # Let factor =
-    #   if numSpin == 1: 2/sum(weights)    # non spin polarized
-    #   if numSpin == 2: 1/sum(weights)    # spin polarized
-    # Start summing: occ = factor * (index into allEigs).
-    # When occ = totalValence, the corresponding eigVal is fermi0K.
+    else:
 
-    numSpin = resObj.numSpin
-    numKpoint = resObj.numKpoint
-    numBand = resObj.numBand
+      # efermiCalc
+      # Make an array allEigs of all the eigenvalues for all the
+      # kpoints, with each eigenvalue replicated by the associated
+      # kpoint weight.
+      # Further, if ispin == 1 (non spin polarized),
+      # replicate each eigenvalue again.
+      #
+      # Sort allEigs by increasing value.
+      # Let factor =
+      #   if numSpin == 1: 2/sum(weights)    # non spin polarized
+      #   if numSpin == 2: 1/sum(weights)    # spin polarized
+      # Start summing: occ = factor * (index into allEigs).
+      # When occ = totalValence, the corresponding eigVal is fermi0K.
 
-    # xxx check all this
-    numEig = 0
-    for ikp in range( numKpoint):
-      numEig += numBand * resObj.kpointMults[ikp]
-    numEig *= 2    # for two spin levels, whether numSpin is 1 or 2
-    numEig = int( round( numEig))
+      numSpin = resObj.numSpin
+      numKpoint = resObj.numKpoint
+      numBand = resObj.numBand
 
-    if self.bugLev >= 5:
-      print 'calcEfermi: numSpin: %d  numKpoint: %d  numBand: %d' \
-        % (numSpin, numKpoint, numBand,)
-      print 'calcEfermi: numEig: %d' % (numEig,)
-
-    avgWt = sum( resObj.kpointMults) / float( numKpoint)
-    allEigs = np.zeros( [numEig])
-    kk = 0
-    for isp in range( numSpin):
+      # xxx check all this
+      numEig = 0
       for ikp in range( numKpoint):
-        for iband in range( numBand):
-          # Replicate by kpoint weight
-          for irepl in range( int( round( resObj.kpointMults[ ikp]))):
-            allEigs[kk] = resObj.eigenMat[ isp, ikp, iband]
-            kk += 1
-            if numSpin == 1:
-              # Replicate for both spins
-              allEigs[kk] = allEigs[kk-1]
+        numEig += numBand * resObj.kpointMults[ikp]
+      numEig *= 2    # for two spin levels, whether numSpin is 1 or 2
+      numEig = int( round( numEig))
+
+      if self.bugLev >= 5:
+        print 'calcEfermi: numSpin: %d  numKpoint: %d  numBand: %d' \
+          % (numSpin, numKpoint, numBand,)
+        print 'calcEfermi: numEig: %d' % (numEig,)
+
+      avgWt = sum( resObj.kpointMults) / float( numKpoint)
+      allEigs = np.zeros( [numEig])
+      kk = 0
+      for isp in range( numSpin):
+        for ikp in range( numKpoint):
+          for iband in range( numBand):
+            # Replicate by kpoint weight
+            for irepl in range( int( round( resObj.kpointMults[ ikp]))):
+              allEigs[kk] = resObj.eigenMat[ isp, ikp, iband]
               kk += 1
-    if kk != numEig: self.throwerr('numEig mismatch', None)
+              if numSpin == 1:
+                # Replicate for both spins
+                allEigs[kk] = allEigs[kk-1]
+                kk += 1
+      if kk != numEig: self.throwerr('numEig mismatch', None)
 
-    allEigs.sort()
-    if self.bugLev >= 5:
-      print 'calcEfermi: numEig: %d' % (numEig,)
-      print 'calcEfermi: allEigs.shape: %s' % (allEigs.shape,)
+      allEigs.sort()
+      if self.bugLev >= 5:
+        print 'calcEfermi: numEig: %d' % (numEig,)
+        print 'calcEfermi: allEigs.shape: %s' % (allEigs.shape,)
 
-    # Find indx such that
-    # occupancy = indx / sum(kpWts) == valence
-    # Set dindx = num eigenvalues used.
-    # The array index of the last used eigenvalue is dindx-1.
-    dindx = resObj.totalValence * sum( resObj.kpointMults)
-    indx = int( round( dindx)) - 1
-    if indx < 0 or indx >= allEigs.shape[0]:
-      self.throwerr('bad fermi.  dindx: %g  indx: %d  shape: %s' \
-        % (dindx, indx, allEigs.shape), None)
-    resObj.efermiCalc = allEigs[indx]
+      # Find indx such that
+      # occupancy = indx / sum(kpWts) == valence
+      # Set dindx = num eigenvalues used.
+      # The array index of the last used eigenvalue is dindx-1.
+      dindx = resObj.totalValence * sum( resObj.kpointMults)
+      indx = int( round( dindx)) - 1
+      if indx < 0 or indx >= allEigs.shape[0]:
+        self.throwerr('bad fermi.  dindx: %g  indx: %d  shape: %s' \
+          % (dindx, indx, allEigs.shape), None)
+      resObj.efermiCalc = allEigs[indx]
 
-    if self.bugLev >= 5:
-      print 'calcEfermi: totalValence: %g' % (resObj.totalValence,)
-      print 'calcEfermi: sum( resObj.kpointMults): %g' % (sum( resObj.kpointMults),)
-      print 'calcEfermi: len(allEigs): %g' % (len(allEigs),)
-      print 'calcEfermi: dindx: %g  indx: %d' % (dindx, indx,)
-      print 'calcEfermi: efermi:     %g' % (resObj.efermi,)
-      print 'calcEfermi: efermiCalc: %g' % (resObj.efermiCalc,)
-      for ii in range( max( 0, indx-10), min( numEig, indx+10)):
-        msg = 'calcEfermi: allEigs[%d]: %g' % (ii, allEigs[ii],)
-        if ii == indx: msg += ' ***'
-        print msg
+      if self.bugLev >= 5:
+        print 'calcEfermi: totalValence: %g' % (resObj.totalValence,)
+        print 'calcEfermi: sum( resObj.kpointMults): %g' % (sum( resObj.kpointMults),)
+        print 'calcEfermi: len(allEigs): %g' % (len(allEigs),)
+        print 'calcEfermi: dindx: %g  indx: %d' % (dindx, indx,)
+        print 'calcEfermi: efermi:     %g' % (resObj.efermi,)
+        print 'calcEfermi: efermiCalc: %g' % (resObj.efermiCalc,)
+        for ii in range( max( 0, indx-10), min( numEig, indx+10)):
+          msg = 'calcEfermi: allEigs[%d]: %g' % (ii, allEigs[ii],)
+          if ii == indx: msg += ' ***'
+          print msg
 
 #====================================================================
 
   def calcBandgaps( self, resObj):
 
-    # Conduction band min
-    # cbMinMat[isp][ikp] = min of eigvals > efermi
-    #
-    # Valence band max
-    # vbMaxMat[isp][ikp] = max of eigvals <= efermi
+    if resObj.isGw:
+      resObj.cbMinVals = None
+      resObj.cbMinIxs  = None
+      resObj.vbMaxVals = None
+      resObj.vbMaxIxs  = None
+      resObj.bandgapDirects = None
+      resObj.bandgapIndirects = None
 
-    numSpin = resObj.numSpin
-    numKpoint = resObj.numKpoint
-    numBand = resObj.numBand
+    else:
+      # Conduction band min
+      # cbMinMat[isp][ikp] = min of eigvals > efermi
+      #
+      # Valence band max
+      # vbMaxMat[isp][ikp] = max of eigvals <= efermi
 
-    # For each isp and kpoint, what is min eigvalue > efermi
-    cbMinMat = np.empty( [numSpin, numKpoint], dtype=float)
-    vbMaxMat = np.empty( [numSpin, numKpoint], dtype=float)
-    cbMinMat.fill( np.inf)
-    vbMaxMat.fill( -np.inf)
+      numSpin = resObj.numSpin
+      numKpoint = resObj.numKpoint
+      numBand = resObj.numBand
 
-    # For each isp, what is min or max across all kpoints
-    cbMinVals = np.empty( [numSpin], dtype=float)
-    vbMaxVals = np.empty( [numSpin], dtype=float)
-    cbMinVals.fill( np.inf)
-    vbMaxVals.fill( -np.inf)
+      # For each isp and kpoint, what is min eigvalue > efermi
+      cbMinMat = np.empty( [numSpin, numKpoint], dtype=float)
+      vbMaxMat = np.empty( [numSpin, numKpoint], dtype=float)
+      cbMinMat.fill( np.inf)
+      vbMaxMat.fill( -np.inf)
 
-    # For each isp, which kpoint has the min or max
-    cbMinIxs = np.empty( [numSpin], dtype=int)
-    vbMaxIxs = np.empty( [numSpin], dtype=int)
-    cbMinIxs.fill( -1)
-    vbMaxIxs.fill( -1)
+      # For each isp, what is min or max across all kpoints
+      cbMinVals = np.empty( [numSpin], dtype=float)
+      vbMaxVals = np.empty( [numSpin], dtype=float)
+      cbMinVals.fill( np.inf)
+      vbMaxVals.fill( -np.inf)
 
-    for isp in range( numSpin):
-      for ikp in range( numKpoint):
-        for iband in range( numBand):
-          val = resObj.eigenMat[isp][ikp][iband]
-          if val <= resObj.efermiCalc:
-            if val > vbMaxMat[isp][ikp]: vbMaxMat[isp][ikp] = val
-            if val > vbMaxVals[isp]:
-              vbMaxVals[isp] = val
-              vbMaxIxs[isp] = ikp
+      # For each isp, which kpoint has the min or max
+      cbMinIxs = np.empty( [numSpin], dtype=int)
+      vbMaxIxs = np.empty( [numSpin], dtype=int)
+      cbMinIxs.fill( -1)
+      vbMaxIxs.fill( -1)
 
-          else:    # val > resObj.efermi
-            if val < cbMinMat[isp][ikp]: cbMinMat[isp][ikp] = val
-            if val < cbMinVals[isp]:
-              cbMinVals[isp] = val
-              cbMinIxs[isp] = ikp
-
-    # Find bandgapDirects[isp] = min gap for the same kpoint
-    # Find bandgapIndirects[isp] = min gap across kpoints
-    bandgapDirects = numSpin * [np.inf]
-    bandgapIndirects = numSpin * [np.inf]
-    for isp in range( numSpin):
-      for ikp in range( numKpoint):
-        gap = max( 0, cbMinMat[isp][ikp] - vbMaxMat[isp][ikp])
-        if gap < bandgapDirects[isp]: bandgapDirects[isp] = gap
-      bandgapIndirects[isp] = max( 0, cbMinVals[isp] - vbMaxVals[isp])
-
-    resObj.cbMinVals = cbMinVals
-    resObj.cbMinIxs  = cbMinIxs
-    resObj.vbMaxVals = vbMaxVals
-    resObj.vbMaxIxs  = vbMaxIxs
-    resObj.bandgapDirects = bandgapDirects
-    resObj.bandgapIndirects = bandgapIndirects
-
-    # This is the PyLada version
-    resObj.cbMin = min( cbMinVals)
-    resObj.vbMax = max( vbMaxVals)
-    resObj.bandgap = resObj.cbMin - resObj.vbMax
-    if resObj.bandgap < 0: resObj.bandgap = 0
-
-    if self.bugLev >= 5:
-
-      print '\ncalcBandgaps: efermiCalc: %g' % (resObj.efermiCalc,)
       for isp in range( numSpin):
-        print '\ncalcBandgaps: start isp: %d' % (isp,)
         for ikp in range( numKpoint):
-          vval = vbMaxMat[isp][ikp]
-          cval = cbMinMat[isp][ikp]
-          vmsg = '%8.4f' % (vval,)
-          cmsg = '%8.4f' % (cval,)
-          if ikp == vbMaxIxs[isp]: vmsg += ' ***'
-          if ikp == cbMinIxs[isp]: cmsg += ' ***'
-          print '  isp: %d  ikp: %3d  vbMaxMat: %-14s  cbMinMat: %-14s' \
-            % ( isp, ikp, vmsg, cmsg,)
-        print ''
+          for iband in range( numBand):
+            val = resObj.eigenMat[isp][ikp][iband]
+            if val <= resObj.efermiCalc:
+              if val > vbMaxMat[isp][ikp]: vbMaxMat[isp][ikp] = val
+              if val > vbMaxVals[isp]:
+                vbMaxVals[isp] = val
+                vbMaxIxs[isp] = ikp
 
-      print 'calcBandgaps: vbMaxIxs: %s' % (resObj.vbMaxIxs,)
-      print 'calcBandgaps: vbMaxVals: %s' % (resObj.vbMaxVals,)
-      print 'calcBandgaps: cbMinIxs: %s' % (resObj.cbMinIxs,)
-      print 'calcBandgaps: cbMinVals: %s' % (resObj.cbMinVals,)
+            else:    # val > resObj.efermi
+              if val < cbMinMat[isp][ikp]: cbMinMat[isp][ikp] = val
+              if val < cbMinVals[isp]:
+                cbMinVals[isp] = val
+                cbMinIxs[isp] = ikp
 
-      print 'calcBandgaps: bandgapDirects:   %s' % (resObj.bandgapDirects,)
-      print 'calcBandgaps: bandgapIndirects: %s' % (resObj.bandgapIndirects,)
-
-      # Write plot data to tempplota%ispin
+      # Find bandgapDirects[isp] = min gap for the same kpoint
+      # Find bandgapIndirects[isp] = min gap across kpoints
+      bandgapDirects = numSpin * [np.inf]
+      bandgapIndirects = numSpin * [np.inf]
       for isp in range( numSpin):
-        with open('tempplota%d' % (isp,), 'w') as fout:
-          for ikp in range( numKpoint):
-            print >> fout, '%g  %g' % (vbMaxMat[isp,ikp], cbMinMat[isp,ikp],)
+        for ikp in range( numKpoint):
+          gap = max( 0, cbMinMat[isp][ikp] - vbMaxMat[isp][ikp])
+          if gap < bandgapDirects[isp]: bandgapDirects[isp] = gap
+        bandgapIndirects[isp] = max( 0, cbMinVals[isp] - vbMaxVals[isp])
 
-      # Write plot data to tempplotb%ispin
-      for isp in range( numSpin):
-        with open('tempplotb%d' % (isp,), 'w') as fout:
+      resObj.cbMinVals = cbMinVals
+      resObj.cbMinIxs  = cbMinIxs
+      resObj.vbMaxVals = vbMaxVals
+      resObj.vbMaxIxs  = vbMaxIxs
+      resObj.bandgapDirects = bandgapDirects
+      resObj.bandgapIndirects = bandgapIndirects
+
+      # This is the PyLada version
+      resObj.cbMin = min( cbMinVals)
+      resObj.vbMax = max( vbMaxVals)
+      resObj.bandgap = resObj.cbMin - resObj.vbMax
+      if resObj.bandgap < 0: resObj.bandgap = 0
+
+      if self.bugLev >= 5:
+
+        print '\ncalcBandgaps: efermiCalc: %g' % (resObj.efermiCalc,)
+        for isp in range( numSpin):
+          print '\ncalcBandgaps: start isp: %d' % (isp,)
           for ikp in range( numKpoint):
-            for iband in range( numBand):
-              print >> fout, '%d  %g' \
-                % (ikp, resObj.eigenMat[isp][ikp][iband],)
+            vval = vbMaxMat[isp][ikp]
+            cval = cbMinMat[isp][ikp]
+            vmsg = '%8.4f' % (vval,)
+            cmsg = '%8.4f' % (cval,)
+            if ikp == vbMaxIxs[isp]: vmsg += ' ***'
+            if ikp == cbMinIxs[isp]: cmsg += ' ***'
+            print '  isp: %d  ikp: %3d  vbMaxMat: %-14s  cbMinMat: %-14s' \
+              % ( isp, ikp, vmsg, cmsg,)
+          print ''
+
+        print 'calcBandgaps: vbMaxIxs: %s' % (resObj.vbMaxIxs,)
+        print 'calcBandgaps: vbMaxVals: %s' % (resObj.vbMaxVals,)
+        print 'calcBandgaps: cbMinIxs: %s' % (resObj.cbMinIxs,)
+        print 'calcBandgaps: cbMinVals: %s' % (resObj.cbMinVals,)
+
+        print 'calcBandgaps: bandgapDirects:   %s' % (resObj.bandgapDirects,)
+        print 'calcBandgaps: bandgapIndirects: %s' % (resObj.bandgapIndirects,)
+
+        # Write plot data to tempplota%ispin
+        for isp in range( numSpin):
+          with open('tempplota%d' % (isp,), 'w') as fout:
+            for ikp in range( numKpoint):
+              print >> fout, '%g  %g' % (vbMaxMat[isp,ikp], cbMinMat[isp,ikp],)
+
+        # Write plot data to tempplotb%ispin
+        for isp in range( numSpin):
+          with open('tempplotb%d' % (isp,), 'w') as fout:
+            for ikp in range( numKpoint):
+              for iband in range( numBand):
+                print >> fout, '%d  %g' \
+                  % (ikp, resObj.eigenMat[isp][ikp][iband],)
 
 #====================================================================
 
@@ -1201,12 +1419,29 @@ class ScanOutcar:
       msg += ']\n'
     return msg
 
+#====================================================================
+
+  def checkClose( self, mata, matb, absErr):
+    if mata == None or matb == None:
+      self.throwerr('mata or matb is None', None)
+    if mata.shape != matb.shape:
+      self.throwerr('checkClose: shape mismatch: mata: %s  matb: %s' \
+        % (mata.shape, matb.shape,))
+    if np.max( np.abs( mata - matb)) > absErr:
+      msg = 'checkClose: mismatch.\n'
+      msg += 'mata:\n%s\n' % (mata,)
+      msg += 'matb:\n%s\n' % (matb,)
+      msg += 'delta = matb - mata:\n%s\n' % (matb - mata,)
+      msg += 'max abs delta: %g\n' % (np.max( np.abs( matb - mata)))
+      msg += '\ncheckClose: mismatch.  See above.'
+      self.throwerr( msg, None)
+
 
 #====================================================================
 
   def throwerr( self, msg, ix):
     fullMsg = '%s\n' % (msg,)
-    fullMsg += '  fname: %s' % (self.fname,)
+    fullMsg += '  inDir: %s' % (self.inDir,)
     if ix != None:
       fullMsg += '  ix: %d\n  line: %s\n' % (ix, self.lines[ix],)
     raise Exception( fullMsg)

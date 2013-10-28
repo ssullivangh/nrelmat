@@ -36,7 +36,7 @@ def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
   print '  -bugLev      <int>      Debug level'
-  print '  -func        <string>   CreateTableModel / createTableContrib'
+  print '  -func        <string>   createTableModel / createTableContrib'
   print '                          / fillTable'
   print '  -useCommit   <boolean>  false/true: do we commit changes to the DB.'
   print '  -deleteTable <boolean>  false/true: If func is create*, do we'
