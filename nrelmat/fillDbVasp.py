@@ -132,14 +132,8 @@ def main():
     val = sys.argv[iarg+1]
     if   key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
-    elif key == '-useCommit':
-      if val == 'false': useCommit = False
-      elif val == 'true': useCommit = True
-      else: badparms('invalid -useCommit arg')
-    elif key == '-deleteTable':
-      if val == 'false': deleteTable = False
-      elif val == 'true': deleteTable = True
-      else: badparms('invalid -deleteTable arg')
+    elif key == '-useCommit': useCommit = wrapUpload.parseBoolean( val)
+    elif key == '-deleteTable': deleteTable = wrapUpload.parseBoolean( val)
     elif key == '-archDir': archDir = val
     elif key == '-wrapId': wrapId = val
     elif key == '-inSpec': inSpec = val

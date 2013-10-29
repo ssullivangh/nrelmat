@@ -18,6 +18,7 @@
 
 import datetime, fractions, json, os, re, sys
 import psycopg2
+import wrapUpload
 
 
 #====================================================================
@@ -26,8 +27,9 @@ import psycopg2
 def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
-  print '  -bugLev     <int>      debug level'
-  print '  -inSpec     <string>   inSpecJsonFile'
+  print '  -bugLev      <int>      debug level'
+  print '  -useCommit   <boolean>  false/true: do we commit changes to the DB.'
+  print '  -inSpec      <string>   inSpecJsonFile'
   sys.exit(1)
 
 
@@ -63,6 +65,7 @@ def main():
   Parameter       Type          Description
   =============   ===========   ==============================================
   **-bugLev**     integer       Debug level.  Normally 0.
+  **-useCommit**  boolean       false/true: do we commit changes to the DB.
   **-inSpec**     string        JSON file containing DB parameters.  See below.
   =============   ===========   ==============================================
 
@@ -97,6 +100,7 @@ def main():
   '''
 
   bugLev     = None
+  useCommit  = None
   inSpec     = None
 
   if len(sys.argv) % 2 != 1:
@@ -105,19 +109,21 @@ def main():
     key = sys.argv[iarg]
     val = sys.argv[iarg+1]
     if   key == '-bugLev': bugLev = int( val)
+    elif key == '-useCommit': useCommit = wrapUpload.parseBoolean( val)
     elif key == '-inSpec': inSpec = val
     else: badparms('unknown key: "%s"' % (key,))
 
   if bugLev == None: badparms('parm not specified: -bugLev')
+  if useCommit == None: badparms('parm not specified: -useCommit')
   if inSpec == None: badparms('parm not specified: -inSpec')
 
-  augmentDb( bugLev, inSpec)
+  augmentDb( bugLev, useCommit, inSpec)
 
 
 #====================================================================
 
 
-def augmentDb( bugLev, inSpec):
+def augmentDb( bugLev, useCommit, inSpec):
   '''
   Adds additional information to the model database table.
 
@@ -126,6 +132,7 @@ def augmentDb( bugLev, inSpec):
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+  * useCommit (bool): do we commit changes to the DB.
   * inSpec (str): Name of JSON file containing DB parameters.
                   See description at :func:`main`.
 
@@ -133,6 +140,8 @@ def augmentDb( bugLev, inSpec):
 
   * None
   '''
+
+  print 'augmentDb: useCommit: %s' % (useCommit,)
 
   with open( inSpec) as fin:
     specMap = json.load( fin)
@@ -158,7 +167,6 @@ def augmentDb( bugLev, inSpec):
 
   queryCols = [
     'model.mident',
-    'model.formula',
     'model.energyperatom',
     'model.typenames',
     'model.typenums',
@@ -194,7 +202,8 @@ def augmentDb( bugLev, inSpec):
     curCols += newCols
 
     dbUpdate(
-      bugLev, conn, cursor, dbtablemodel, queryCols, curCols, db_rows)
+      bugLev, useCommit, conn, cursor,
+      dbtablemodel, queryCols, curCols, db_rows)
 
   finally:
     if cursor != None: cursor.close()
@@ -280,6 +289,7 @@ def addChemforms( bugLev, curCols, db_rows):
     mident = row[icolmident]
     tnames = row[icolnames]
     tnums = row[icolnums]
+
     if tnames != None and tnums != None:
       tlen = len( tnames)
       if len( tnums) != tlen: throwerr('tlen mismatch')
@@ -358,18 +368,19 @@ def addMinenergy( bugLev, curCols, db_rows):
       print 'addMinenergy beg: first row: %s' % (db_rows[0],)
 
   icolMident = getIcol( curCols, 'model.mident')
-  icolFormula = getIcol( curCols, 'model.formula')
   icolEnergy = getIcol( curCols, 'model.energyperatom')
   icolSymgroupnum = getIcol( curCols, 'icsd.symgroupnum')
+  icolFormula = getIcol( curCols, 'formula')     # newly added column
 
-  minMap = {}       # formulaSymnum -> [minEnergy, mident]
+  minMap = {}       # (formula,symgroupnum) -> [minEnergy, mident]
   for row in db_rows:
     mident = row[icolMident]
-    formula = row[icolFormula]
     energy = row[icolEnergy]
     symgroupnum = row[icolSymgroupnum]
+    formula = row[icolFormula]
 
     formulaSymnum = '%s,%s' % (formula, symgroupnum,) # symgroupnum may be None
+
     pair = minMap.get( formulaSymnum, None)
     if pair == None or energy < pair[0]:
       minMap[formulaSymnum] = [energy, mident]
@@ -378,8 +389,8 @@ def addMinenergy( bugLev, curCols, db_rows):
   for row in db_rows:
     mident = row[icolMident]
     formula = row[icolFormula]
-    symgroupnum = row[icolSymgroupnum]
-    formulaSymnum = '%s,%s' % (formula, symgroupnum,) # symgroupnum may be None
+    symgroupnum = row[icolSymgroupnum]           # symgroupnum may be None
+    formulaSymnum = '%s,%s' % (formula, symgroupnum,)
 
     pair = minMap[formulaSymnum]      # [minEnergy, minId]
     minId = pair[1]
@@ -425,10 +436,10 @@ def addEnthalpy( bugLev, curCols, db_rows):
       print 'addEnthalpy beg: first row: %s' % (db_rows[0],)
 
   icolMident = getIcol( curCols, 'model.mident')
-  icolFormula = getIcol( curCols, 'model.formula')
   icolEnergy = getIcol( curCols, 'model.energyperatom')
   icolTypenames = getIcol( curCols, 'model.typenames')
   icolTypenums = getIcol( curCols, 'model.typenums')
+  icolFormula = getIcol( curCols, 'formula')     # newly added column
 
   # Add new column enthalpy to each row
   for row in db_rows:
@@ -612,7 +623,8 @@ def dbQuery( bugLev, conn, cursor, dbtablemodel, dbtableicsd, queryCols):
 # Write the appended values for each row to the db.
 
 def dbUpdate(
-  bugLev, conn, cursor, dbtablemodel, queryCols, curCols, db_rows):
+  bugLev, useCommit, conn, cursor,
+  dbtablemodel, queryCols, curCols, db_rows):
   '''
   Issues a DB SQL update.
 
@@ -622,6 +634,7 @@ def dbUpdate(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+  * useCommit (bool): do we commit changes to the DB.
   * conn (psycopg2.connection): Open DB connection
   * cursor (psycopg2.cursor): Open DB cursor
   * dbtablemodel (str): Database name of the "model" table.
@@ -675,8 +688,9 @@ def dbUpdate(
       % ( dbtablemodel, colStg, updStg, mident,))
   if bugLev >= 1: print 'dbUpdate: update done'
 
-  conn.commit()
-  if bugLev >= 1: print 'dbUpdate: commit done'
+  if useCommit:
+    conn.commit()
+    if bugLev >= 1: print 'dbUpdate: commit done'
 
 
 #====================================================================

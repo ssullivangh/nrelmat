@@ -36,12 +36,13 @@ def badparms( msg):
   print '\nError: %s' % (msg,)
   print 'Parms:'
   print ''
-  print '  -bugLev     <int>      debug level'
-  print '  -func       <string>   readIncoming / redoArch'
-  print '  -inDir      <string>   Input dir for uploaded files.'
-  print '  -archDir    <string>   Dir used for work and archiving.'
-  print '  -logFile    <string>   Log file name.'
-  print '  -inSpec     <string>   inSpecJsonFile'
+  print '  -bugLev      <int>      debug level'
+  print '  -func        <string>   readIncoming / redoArch'
+  print '  -useCommit   <boolean>  false/true: do we commit changes to the DB.'
+  print '  -inDir       <string>   Input dir for uploaded files.'
+  print '  -archDir     <string>   Dir used for work and archiving.'
+  print '  -logFile     <string>   Log file name.'
+  print '  -inSpec      <string>   inSpecJsonFile'
   sys.exit(1)
 
 
@@ -65,6 +66,7 @@ def main():
   =============   =========    ==============================================
   **-bugLev**     integer      Debug level.  Normally 0.
   **-func**       string       Function.  See below.
+  **-useCommit**  boolean      false/true: do we commit changes to the DB.
   **-inDir**      string       Input dir for uploaded files.
   **-archDir**    string       Dir used for work and archiving.
   **-logFile**    string       Log file name.
@@ -124,6 +126,7 @@ def main():
 
   bugLev = None
   func = None
+  useCommit   = None
   inDir = None
   archDir = None
   logFile = None
@@ -136,6 +139,7 @@ def main():
     val = sys.argv[iarg+1]
     if key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
+    elif key == '-useCommit': useCommit = wrapUpload.parseBoolean( val)
     elif key == '-inDir': inDir = val
     elif key == '-archDir': archDir = val
     elif key == '-logFile': logFile = val
@@ -144,12 +148,14 @@ def main():
 
   if bugLev == None: badparms('parm not specified: -bugLev')
   if func == None: badparms('parm not specified: -func')
+  if useCommit == None: badparms('parm not specified: -useCommit')
   if inDir == None: badparms('parm not specified: -inDir')
   if archDir == None: badparms('parm not specified: -archDir')
   if logFile == None: badparms('parm not specified: -logFile')
   if inSpec == None: badparms('parm not specified: -inSpec')
 
   print 'wrapReceive: func: %s' % (func,)
+  print 'wrapReceive: useCommit: %s' % (useCommit,)
   print 'wrapReceive: inDir: %s' % (inDir,)
   print 'wrapReceive: archDir: %s' % (archDir,)
   print 'wrapReceive: logFile: %s' % (logFile,)
@@ -185,7 +191,7 @@ def main():
           excStg = None
           try: 
             gatherArchive(
-              bugLev, inDirPath, archDirPath, wrapId, inSpec)
+              bugLev, useCommit, inDirPath, archDirPath, wrapId, inSpec)
           except Exception, exc:
             excStg = repr( exc)
             wrapUpload.logit('caught: %s' % (excStg,))
@@ -212,7 +218,7 @@ def main():
 
         excStg = None
         try: 
-          processTree( bugLev, subDir, wrapId, inSpec)
+          processTree( bugLev, useCommit, subDir, wrapId, inSpec)
         except Exception, exc:
           excStg = repr( exc)
           wrapUpload.logit('caught: %s' % (excStgs,))
@@ -232,7 +238,7 @@ def main():
 
 
 def gatherArchive(
-  bugLev, inDirPath, archDirPath, wrapId, inSpec):
+  bugLev, useCommit, inDirPath, archDirPath, wrapId, inSpec):
   '''
   Moves inDirPath/wrapId.* to archDir and adds the info to the database.
 
@@ -243,6 +249,7 @@ def gatherArchive(
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+  * useCommit (bool): do we commit changes to the DB.
   * inDirPath (str): Absolute path of the command line parm ``inDir``.
   * archDirPath (str): Absolute path of the command line parm ``archDir``.
   * wrapId (str): The wrapId extracted from the current filename.
@@ -292,7 +299,7 @@ def gatherArchive(
 
   # xxx Here we could delete archPathNew.
 
-  processTree( bugLev, subDir, wrapId, inSpec)
+  processTree( bugLev, useCommit, subDir, wrapId, inSpec)
 
 
 
@@ -300,7 +307,7 @@ def gatherArchive(
 
 
 
-def processTree( bugLev, subDir, wrapId, inSpec):
+def processTree( bugLev, useCommit, subDir, wrapId, inSpec):
   '''
   Calls :mod:`fillDbVasp` to add info to the database,
   and :mod:`augmentDb` to fill additional DB columns.
@@ -308,6 +315,7 @@ def processTree( bugLev, subDir, wrapId, inSpec):
   **Parameters**:
 
   * bugLev (int): Debug level.  Normally 0.
+  * useCommit (bool): do we commit changes to the DB.
   * wrapId (str): The wrapId extracted from the current filename.
   * subDir (str): archDirPath/wrapId
   * inSpec (str): Name of JSON file containing DB parameters.
@@ -325,13 +333,14 @@ def processTree( bugLev, subDir, wrapId, inSpec):
   fillDbVasp.fillDbVasp(
     bugLev,
     'fillTable',     # func
+    useCommit,
     False,           # deleteTable
     subDir,
     wrapId,
     inSpec)
 
   # Fill in additional columns in the model table
-  augmentDb.augmentDb( bugLev, inSpec)
+  augmentDb.augmentDb( bugLev, useCommit, inSpec)
 
 
 #====================================================================

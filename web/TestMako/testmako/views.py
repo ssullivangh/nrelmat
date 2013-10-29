@@ -227,7 +227,7 @@ def getModelColDescs():
     ColumnDesc('hashstring', 'hash', '%s',
       'sha512 sum of vasprun.xml file'),
     ColumnDesc('meta_parents', 'parents', '[%s]',
-      'sha512 sums of parent vasprun.xml files'),
+      'parent entries'),
     ColumnDesc('meta_firstname', 'firstName', '%s',
       'First name of the researcher.'),
     ColumnDesc('meta_lastname', 'lastName', '%s',
@@ -235,9 +235,9 @@ def getModelColDescs():
     ColumnDesc('meta_publications', 'publications', '[%s]',
       'DOIs of publications'),
     ColumnDesc('meta_standards', 'standards', '[%s]',
-      'computational standards'),
+      'standards'),
     ColumnDesc('meta_keywords', 'keywords', '[%s]',
-      'keywords to aid searching'),
+      'keywords'),
     ColumnDesc('meta_notes', 'notes', '%s',
       'notes'),
   ]
@@ -484,6 +484,8 @@ def vwQueryStd( request):
   queryFields = queryFieldStg.split()
   showFields = [nm.strip('*') for nm in queryFields if nm.endswith('*')]
   queryFields = map( lambda x: x.strip('*'), queryFields)
+  lastNameStg = settings['db_last_names']
+  lastNames = lastNameStg.split()
 
   if buglev >= 5:
     print 'vwQueryStd: auth_userid: %s' \
@@ -552,12 +554,13 @@ def vwQueryStd( request):
       qrequiresStg = dlmap['qrequires'][0].strip()
       qforbidsStg = dlmap['qforbids'][0].strip()
       qexpr = dlmap['qexpr'][0].strip()
-      if dlmap.has_key('showLastNameStevanovic'):
-        showLastNameStevanovic = True
-      else: showLastNameStevanovic = False
-      if dlmap.has_key('showLastNameZawadzki'):
-        showLastNameZawadzki = True
-      else: showLastNameZawadzki = False
+
+      lastNameFlags = []
+      for ii in range(len(lastNames)):
+        found = False
+        if dlmap.has_key('lastName_%s' % (lastNames[ii],)): found = True
+        lastNameFlags.append( found)
+
       if dlmap.has_key('showMinEnergyOnly'):
         showMinEnergyOnly = True
       else: showMinEnergyOnly = False
@@ -581,8 +584,8 @@ def vwQueryStd( request):
         print 'vwQueryStd: qrequirePairs: %s' % (qrequirePairs,)
         print 'vwQueryStd: qforbidPairs: %s' % (qforbidPairs,)
         print 'vwQueryStd: qexpr: %s' % (qexpr,)
-        print 'vwQueryStd: showLastNameStevanovic: %s' % (showLastNameStevanovic,)
-        print 'vwQueryStd: showLastNameZawadzki: %s' % (showLastNameZawadzki,)
+        print 'vwQueryStd: lastNames: %s' % (lastNames,)
+        print 'vwQueryStd: lastNameFlags: %s' % (lastNameFlags,)
         print 'vwQueryStd: showMinEnergyOnly: %s' % (showMinEnergyOnly,)
         print 'vwQueryStd: currentPage: %d' % (currentPage,)
         print 'vwQueryStd: qoffset: %d' % (qoffset,)
@@ -590,12 +593,15 @@ def vwQueryStd( request):
 
       whereClause = 'TRUE'
 
-      if showLastNameStevanovic and showLastNameZawadzki: pass
-      elif showLastNameStevanovic:
-        whereClause += ' AND model.meta_lastname = \'Stevanovic\''
-      elif showLastNameZawadzki:
-        whereClause += ' AND model.meta_lastname = \'Zawadzki\''
-      else: whereClause += ' AND FALSE'      # no results
+      if all( lastNameFlags): pass
+      elif not any( lastNameFlags): whereClause += ' AND FALSE'  # no results
+      else:
+        orClause = ''
+        for ii in range(len(lastNames)):
+          if lastNameFlags[ii]:
+            if len( orClause) > 0: orClause += ' OR '
+            orClause += 'model.meta_lastname = \'%s\'' % (lastNames[ii],)
+        whereClause += ' AND ( %s ) ' % (orClause,)
 
       if showMinEnergyOnly:
         whereClause += ' AND model.mident = model.minenergyid'
@@ -658,16 +664,20 @@ def vwQueryStd( request):
 
       nameStg = ', '.join( queryFields)
 
+      fromClause = \
+        'model LEFT OUTER JOIN icsd ON (model.icsdnum = icsd.icsdnum)'
+
       if buglev >= 1:
         print 'vwQueryStd: queryFields: %s' % (queryFields,)
         print 'vwQueryStd: showFields: %s' % (showFields,)
+        print 'vwQueryStd: nameStg: %s' % (nameStg,)
+        print 'vwQueryStd: fromClause: %s' % (fromClause,)
+        print 'vwQueryStd: whereClause: %s' % (whereClause,)
+        print 'vwQueryStd: sortStg: %s' % (sortStg,)
         print 'vwQueryStd: qoffset: %d' % (qoffset,)
         print 'vwQueryStd: qlimit: %d' % (qlimit,)
 
       query0 = 'set search_path to %s' % (settings['db_schema'],)
-
-      fromClause = \
-        'model LEFT OUTER JOIN icsd ON (model.icsdnum = icsd.icsdnum)'
 
       query1 = 'SELECT count(*) FROM %s WHERE %s' % (fromClause, whereClause,)
 
@@ -696,12 +706,11 @@ def vwQueryStd( request):
       errMsg = str( exc)
 
   else:
-    qrequiresStg = 'Sn Zn'
+    qrequiresStg = ''
     qset = 'superset'
-    qforbidsStg = 'H'
-    qexpr = '0 < bandgap and bandgap < 1.5'
-    showLastNameStevanovic = True
-    showLastNameZawadzki = True
+    qforbidsStg = ''
+    qexpr = ''
+    lastNameFlags = len(lastNames) * [True]
     showMinEnergyOnly = True
 
     # qsort = 'energyPerAtom bandgap icsdNum dbId'
@@ -717,6 +726,16 @@ def vwQueryStd( request):
   if qset == 'superset': qsetSuperset = 'checked="true"'
   if qset == 'formula': qsetFormula = 'checked="true"'
 
+  lastNameHtml = ''
+  for ii in range( len( lastNames)):
+
+    lastNameHtml += '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\n'
+    if lastNameFlags[ii]: checkStg = ' checked="checked"'
+    else: checkStg = ''
+    lastNameHtml += ' <input type="checkbox" name="lastName_%s" %s/>\n' \
+      % (lastNames[ii], checkStg,)
+    lastNameHtml += '%s\n' % (lastNames[ii],)
+
   return dict(
     qsetSubset     = qsetSubset,
     qsetExact      = qsetExact,
@@ -725,8 +744,7 @@ def vwQueryStd( request):
     qrequires      = qrequiresStg,
     qforbids       = qforbidsStg,
     qexpr          = qexpr,
-    showLastNameStevanovic = showLastNameStevanovic,
-    showLastNameZawadzki = showLastNameZawadzki,
+    lastNameHtml   = lastNameHtml,
     showMinEnergyOnly = showMinEnergyOnly,
     # qsort          = qsort,
     qlimit         = qlimit,
