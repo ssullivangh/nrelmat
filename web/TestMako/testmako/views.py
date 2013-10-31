@@ -1014,19 +1014,20 @@ def vwDownloadSql(request):
       keys.sort()
       for key in keys:
         (cdesc, value) = dbMap[key]
-        tag = cdesc.tag
-        stg = repr( value)
-        if type(value).__name__ == 'ndarray':
-          content += '# %s shape: %s\n' % (tag, value.shape,)
-          stg = 'np.' + stg
-        content += '%s = %s\n\n' % (tag, stg,)
+        content += '# %s\n' % (cdesc.desc,)
+        if type(value).__name__ == 'list':
+          content += '# shape: %s\n' % (np.array( value).shape,)
+        content += '%s = %s\n\n' % (key, repr(value),)
     elif format == 'json':
       keys = dbMap.keys()
       keys.sort()
       nuMap = {}
       for key in keys:
         (cdesc, value) = dbMap[key]
-        nuMap[cdesc.tag] = value
+        nuMap[key + '.desc'] = cdesc.desc
+        if type(value).__name__ == 'list':
+          nuMap[key + '.shape'] = np.array( value).shape
+        nuMap[key] = value
       content = json.dumps( nuMap,
         indent = 2, separators=(',', ': '), sort_keys=True)
     else: errMsg += 'invalid format<br>\n'

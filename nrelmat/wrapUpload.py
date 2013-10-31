@@ -1241,10 +1241,10 @@ def parseMetadata( fpath):
       field = mat.group(1)
       value = mat.group(2)        # init value
 
-      if metaMap.has_key(field):
-        throwerr(('multiple spec of field: "%s"'
-          + '  file: "%s"  approx iline: %d  line: "%s"')
-          % (field, fpath, iline, line,))
+      #if metaMap.has_key(field):
+      #  throwerr(('multiple spec of field: "%s"'
+      #    + '  file: "%s"  approx iline: %d  line: "%s"')
+      #    % (field, fpath, iline, line,))
 
       if field in [parentsTag, publicationsTag, standardsTag, keywordsTag]:
         # Strip before we test for trailing comma below
@@ -1274,6 +1274,10 @@ def parseMetadata( fpath):
           throwerr(('invalid name: "%s"'
             + '  file: "%s"  approx iline: %d  line: "%s"')
             % (value, fpath, iline, line,))
+        if metaMap.has_key(field):
+          throwerr(('multiple spec of field: "%s"'
+            + '  file: "%s"  approx iline: %d  line: "%s"')
+            % (field, fpath, iline, line,))
         metaMap[field] = value
 
       elif field in [parentsTag, publicationsTag, standardsTag, keywordsTag]:
@@ -1303,9 +1307,15 @@ def parseMetadata( fpath):
                 % (fpath, iline, line,)
               throwerr( errMsg)
             vals.append( tok)
+        # Append values to previous ones
+        if not metaMap.has_key(field): metaMap[field] = []
         metaMap[field] = vals         # set list
 
       elif field == notesTag:
+        if metaMap.has_key(field):
+          throwerr(('multiple spec of field: "%s"'
+            + '  file: "%s"  approx iline: %d  line: "%s"')
+            % (field, fpath, iline, line,))
         metaMap[field] = value       # set text
 
       else:

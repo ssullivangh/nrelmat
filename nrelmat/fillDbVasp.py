@@ -39,6 +39,7 @@ def badparms( msg):
   print '  -func        <string>   createTableModel / createTableContrib'
   print '                          / fillTable'
   print '  -useCommit   <boolean>  false/true: do we commit changes to the DB.'
+  print '  -allowExc    <boolean>  false/true: continue after error.'
   print '  -deleteTable <boolean>  false/true: If func is create*, do we'
   print '                          delete the old table first.'
   print '  -archDir     <string>   Input dir tree'
@@ -65,6 +66,7 @@ def main():
   **-bugLev**       integer      Debug level.  Normally 0.
   **-func**         string       Function.  See below.
   **-useCommit**    boolean      false/true: do we commit changes to the DB.
+  **-allowExc**     boolean      false/true: continue after error.
   **-deleteTable**  boolean      false/true: If func is create*, do we
                                  delete the old table first.
   **-archDir**      string       Input dir tree.
@@ -120,6 +122,7 @@ def main():
   bugLev      = None
   func        = None
   useCommit   = None
+  allowExc   = None
   deleteTable = None
   archDir     = None
   wrapId      = None
@@ -133,6 +136,7 @@ def main():
     if   key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
     elif key == '-useCommit': useCommit = wrapUpload.parseBoolean( val)
+    elif key == '-allowExc': allowExc = wrapUpload.parseBoolean( val)
     elif key == '-deleteTable': deleteTable = wrapUpload.parseBoolean( val)
     elif key == '-archDir': archDir = val
     elif key == '-wrapId': wrapId = val
@@ -142,6 +146,7 @@ def main():
   if bugLev == None: badparms('parm not specified: -bugLev')
   if func == None: badparms('parm not specified: -func')
   if useCommit == None: badparms('parm not specified: -useCommit')
+  if allowExc == None: badparms('parm not specified: -allowExc')
   if deleteTable == None: badparms('parm not specified: -deleteTable')
   if archDir == None: badparms('parm not specified: -archDir')
   if wrapId == None: badparms('parm not specified: -wrapId')
@@ -161,7 +166,7 @@ def main():
 
   else: wrapIdUse = wrapId
 
-  fillDbVasp( bugLev, func, useCommit, deleteTable,
+  fillDbVasp( bugLev, func, useCommit, allowExc, deleteTable,
     archDir, wrapIdUse, inSpec)
 
 
@@ -173,6 +178,7 @@ def fillDbVasp(
   bugLev,
   func,
   useCommit,
+  allowExc,
   deleteTable,
   archDir,
   wrapId,
@@ -193,6 +199,7 @@ def fillDbVasp(
         Read a dir tree and add rows to the database table "model".
 
   * useCommit (boolean): If True, we commit changes to the DB.
+  * allowExc (boolean): If True, continue after error
   * deleteTable (boolean): If True and func is create\*,
     delete the specified table before creating it.
   * archDir (str): Input directory tree.
@@ -210,6 +217,7 @@ def fillDbVasp(
   if bugLev >= 1:
     print 'fillDbVasp: func: %s' % (func,)
     print 'fillDbVasp: useCommit: %s' % (useCommit,)
+    print 'fillDbVasp: allowExc: %s' % (allowExc,)
     print 'fillDbVasp: deleteTable: %s' % (deleteTable,)
     print 'fillDbVasp: archDir: %s' % (archDir,)
     print 'fillDbVasp: wrapId: %s' % (wrapId,)
@@ -275,7 +283,7 @@ def fillDbVasp(
       createTableContrib( bugLev, useCommit, deleteTable,
         conn, cursor, dbtablecontrib)
     elif func == 'fillTable':
-      fillTable( bugLev, useCommit, archDir, conn, cursor, wrapId,
+      fillTable( bugLev, useCommit, allowExc, archDir, conn, cursor, wrapId,
         dbtablemodel, dbtablecontrib)
     else: throwerr('unknown func: "%s"' % (func,))
 
@@ -498,6 +506,7 @@ def createTableContrib(
 def fillTable(
   bugLev,
   useCommit,
+  allowExc,
   archDir,
   conn,
   cursor,
@@ -519,6 +528,7 @@ def fillTable(
 
   * bugLev (int): Debug level.  Normally 0.
   * useCommit (boolean): If True, we commit changes to the DB.
+  * allowExc (boolean): If True, we continue after error.
   * archDir (str): Input directory tree.
   * conn (psycopg2.connection): Open DB connection
   * cursor (psycopg2.cursor): Open DB cursor
@@ -609,6 +619,7 @@ def fillTable(
       print '===== traceback start ====='
       print traceback.format_exc( limit=None)
       print '===== traceback end ====='
+      if not allowExc: throwerr('caught: %s' % (exc,))
 
   # Add one row to the contrib table.
   # Coord with wrapUpload.py main.

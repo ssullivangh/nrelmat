@@ -39,6 +39,7 @@ def badparms( msg):
   print '  -bugLev      <int>      debug level'
   print '  -func        <string>   readIncoming / redoArch'
   print '  -useCommit   <boolean>  false/true: do we commit changes to the DB.'
+  print '  -allowExc    <boolean>  false/true: do we commit changes to the DB.'
   print '  -inDir       <string>   Input dir for uploaded files.'
   print '  -archDir     <string>   Dir used for work and archiving.'
   print '  -logFile     <string>   Log file name.'
@@ -67,6 +68,7 @@ def main():
   **-bugLev**     integer      Debug level.  Normally 0.
   **-func**       string       Function.  See below.
   **-useCommit**  boolean      false/true: do we commit changes to the DB.
+  **-allowExc**   boolean      false/true: do we commit changes to the DB.
   **-inDir**      string       Input dir for uploaded files.
   **-archDir**    string       Dir used for work and archiving.
   **-logFile**    string       Log file name.
@@ -126,7 +128,8 @@ def main():
 
   bugLev = None
   func = None
-  useCommit   = None
+  useCommit = None
+  allowExc = None
   inDir = None
   archDir = None
   logFile = None
@@ -140,6 +143,7 @@ def main():
     if key == '-bugLev': bugLev = int( val)
     elif key == '-func': func = val
     elif key == '-useCommit': useCommit = wrapUpload.parseBoolean( val)
+    elif key == '-allowExc': allowExc = wrapUpload.parseBoolean( val)
     elif key == '-inDir': inDir = val
     elif key == '-archDir': archDir = val
     elif key == '-logFile': logFile = val
@@ -149,6 +153,7 @@ def main():
   if bugLev == None: badparms('parm not specified: -bugLev')
   if func == None: badparms('parm not specified: -func')
   if useCommit == None: badparms('parm not specified: -useCommit')
+  if allowExc == None: badparms('parm not specified: -allowExc')
   if inDir == None: badparms('parm not specified: -inDir')
   if archDir == None: badparms('parm not specified: -archDir')
   if logFile == None: badparms('parm not specified: -logFile')
@@ -156,6 +161,7 @@ def main():
 
   print 'wrapReceive: func: %s' % (func,)
   print 'wrapReceive: useCommit: %s' % (useCommit,)
+  print 'wrapReceive: allowExc: %s' % (allowExc,)
   print 'wrapReceive: inDir: %s' % (inDir,)
   print 'wrapReceive: archDir: %s' % (archDir,)
   print 'wrapReceive: logFile: %s' % (logFile,)
@@ -191,7 +197,8 @@ def main():
           excStg = None
           try: 
             gatherArchive(
-              bugLev, useCommit, inDirPath, archDirPath, wrapId, inSpec)
+              bugLev, useCommit, allowExc, inDirPath, archDirPath,
+              wrapId, inSpec)
           except Exception, exc:
             excStg = repr( exc)
             wrapUpload.logit('caught: %s' % (excStg,))
@@ -201,7 +208,7 @@ def main():
             wrapUpload.logit('archived %s' % (wrapId,))
           else:
             wrapUpload.logit('error for %s: %s' % (wrapId, excStg,))
-            # throwerr( excStg)
+            if not allowExc: throwerr( excStg)
 
       time.sleep(5)                     # poll interval
 
@@ -218,7 +225,7 @@ def main():
 
         excStg = None
         try: 
-          processTree( bugLev, useCommit, subDir, wrapId, inSpec)
+          processTree( bugLev, useCommit, allowExc, subDir, wrapId, inSpec)
         except Exception, exc:
           excStg = repr( exc)
           wrapUpload.logit('caught: %s' % (excStgs,))
@@ -228,7 +235,7 @@ def main():
           wrapUpload.logit('archived %s' % (wrapId,))
         else:
           wrapUpload.logit('error for %s: %s' % (wrapId, excStgs,))
-          throwerr( excStg)
+          if not allowExc: throwerr( excStg)
 
   else: badparms('invalid func')
 
@@ -238,7 +245,7 @@ def main():
 
 
 def gatherArchive(
-  bugLev, useCommit, inDirPath, archDirPath, wrapId, inSpec):
+  bugLev, useCommit, allowExc, inDirPath, archDirPath, wrapId, inSpec):
   '''
   Moves inDirPath/wrapId.* to archDir and adds the info to the database.
 
@@ -250,6 +257,7 @@ def gatherArchive(
 
   * bugLev (int): Debug level.  Normally 0.
   * useCommit (bool): do we commit changes to the DB.
+  * allowExc (bool): do we continue after error.
   * inDirPath (str): Absolute path of the command line parm ``inDir``.
   * archDirPath (str): Absolute path of the command line parm ``archDir``.
   * wrapId (str): The wrapId extracted from the current filename.
@@ -299,7 +307,7 @@ def gatherArchive(
 
   # xxx Here we could delete archPathNew.
 
-  processTree( bugLev, useCommit, subDir, wrapId, inSpec)
+  processTree( bugLev, useCommit, allowExc, subDir, wrapId, inSpec)
 
 
 
@@ -307,7 +315,7 @@ def gatherArchive(
 
 
 
-def processTree( bugLev, useCommit, subDir, wrapId, inSpec):
+def processTree( bugLev, useCommit, allowExc, subDir, wrapId, inSpec):
   '''
   Calls :mod:`fillDbVasp` to add info to the database,
   and :mod:`augmentDb` to fill additional DB columns.
@@ -316,6 +324,7 @@ def processTree( bugLev, useCommit, subDir, wrapId, inSpec):
 
   * bugLev (int): Debug level.  Normally 0.
   * useCommit (bool): do we commit changes to the DB.
+  * allowExc (bool): do we continue after error.
   * wrapId (str): The wrapId extracted from the current filename.
   * subDir (str): archDirPath/wrapId
   * inSpec (str): Name of JSON file containing DB parameters.
@@ -334,6 +343,7 @@ def processTree( bugLev, useCommit, subDir, wrapId, inSpec):
     bugLev,
     'fillTable',     # func
     useCommit,
+    allowExc,
     False,           # deleteTable
     subDir,
     wrapId,
