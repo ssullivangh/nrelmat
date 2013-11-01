@@ -143,40 +143,40 @@ def getModelColDescs():
     #--- general parameters ---
     #--- atom info ---
     ColumnDesc('numatom', 'numAtom', '%d', 'num atoms in unit cell'),
-    ColumnDesc('typenames', 'typeNames', '[%s]', 'atom types'),
-    ColumnDesc('typenums', 'typeNums', '[%d]', 'num of each type of atom'),
-    ColumnDesc('typemasses', 'typeMasses', '[%g]',
+    ColumnDesc('typenames', 'typeNames', '%s', 'atom types'),
+    ColumnDesc('typenums', 'typeNums', '%s', 'num of each type of atom'),
+    ColumnDesc('typemasses', 'typeMasses', '%s',
       'atom mass for each type'),
-    ColumnDesc('typepseudos', 'typePseudos', '[%s]',
+    ColumnDesc('typepseudos', 'typePseudos', '%s',
       'atom pseudopotential name for each type'),
-    ColumnDesc('typevalences', 'typeValences', '[%d]',
+    ColumnDesc('typevalences', 'typeValences', '%s',
       'atom valences for each type'),
 
-    ColumnDesc('atomnames', 'atomNames', '[%s]', 'atom names'),
-    ColumnDesc('atommasses_amu', 'atomMasses_amu', '[%g]', 'atom masses'),
-    ColumnDesc('atompseudos', 'atomPseudos', '[%s]',
+    ColumnDesc('atomnames', 'atomNames', '%s', 'atom names'),
+    ColumnDesc('atommasses_amu', 'atomMasses_amu', '%s', 'atom masses'),
+    ColumnDesc('atompseudos', 'atomPseudos', '%s',
       'atom pseudopotential names'),
-    ColumnDesc('atomvalences', 'atomValences', '[%d]',
+    ColumnDesc('atomvalences', 'atomValences', '%s',
       'atom valences in cell'),
 
     #--- initial structure ---
-    ColumnDesc('initialbasismat', 'initialBasisMat', '[[%g]]',
+    ColumnDesc('initialbasismat', 'initialBasisMat', '%s',
       'initial basis matrix, rows are basis vecs'),
-    ColumnDesc('initialrecipbasismat', 'initialRecipBasisMat', '[[%g]]',
+    ColumnDesc('initialrecipbasismat', 'initialRecipBasisMat', '%s',
       'initial reciprocal basis matrix, rows are basis vecs'),
-    ColumnDesc('initialcartposmat', 'initialCartPosMat', '[[%g]]',
+    ColumnDesc('initialcartposmat', 'initialCartPosMat', '%s',
       'initial cartesian position matrix'),
-    ColumnDesc('initialfracposmat', 'initialFracPosMat', '[[%g]]',
+    ColumnDesc('initialfracposmat', 'initialFracPosMat', '%s',
       'initial fractional (direct) position matrix'),
 
     #--- final structure ---
-    ColumnDesc('finalbasismat', 'finalBasisMat', '[[%g]]',
+    ColumnDesc('finalbasismat', 'finalBasisMat', '%s',
       'final basis matrix, rows are basis vecs'),
-    ColumnDesc('finalrecipbasismat', 'finalRecipBasisMat', '[[%g]]',
+    ColumnDesc('finalrecipbasismat', 'finalRecipBasisMat', '%s',
       'final reciprocal basis matrix, rows are basis vecs'),
-    ColumnDesc('finalcartposmat', 'finalCartPosMat', '[[%g]]',
+    ColumnDesc('finalcartposmat', 'finalCartPosMat', '%s',
       'final cartesian position matrix (row per atom, = direct * basis)'),
-    ColumnDesc('finalfracposmat', 'finalFracPosMat', '[[%g]]',
+    ColumnDesc('finalfracposmat', 'finalFracPosMat', '%s',
       'final fractional (direct) position matrix'),
 
     #--- final volume and density ---
@@ -186,15 +186,15 @@ def getModelColDescs():
       'final cell density, g/cm3'),
 
     #--- last calc forces ---
-    ColumnDesc('finalforcemat_ev_ang', 'finalForceMat', '[[%g]]',
+    ColumnDesc('finalforcemat_ev_ang', 'finalForceMat', '%s',
       'final force matrix, eV/Ang, row per atom'),
-    ColumnDesc('finalstressmat_kbar', 'finalStressMat', '[[%g]]',
+    ColumnDesc('finalstressmat_kbar', 'finalStressMat', '%s',
       'final stress matrix, kbar, (3x3)'),
     ColumnDesc('finalpressure_kbar', 'finalPressure', '%g',
       'final pressure, Kbar'),
 
     #--- eigenvalues and occupancies ---
-    ColumnDesc('eigenmat', 'eigenMat', '[[%g]]',
+    ColumnDesc('eigenmat', 'eigenMat', '%s',
       'final eigenvalue matrix ([spin][kpoint][band])'),
 
     #--- energy, efermi0 ---
@@ -226,17 +226,17 @@ def getModelColDescs():
     #--- metadata ---
     ColumnDesc('hashstring', 'hash', '%s',
       'sha512 sum of vasprun.xml file'),
-    ColumnDesc('meta_parents', 'parents', '[%s]',
+    ColumnDesc('meta_parents', 'parents', '%s',
       'parent entries'),
     ColumnDesc('meta_firstname', 'firstName', '%s',
       'First name of the researcher.'),
     ColumnDesc('meta_lastname', 'lastName', '%s',
       'Last name of the researcher.'),
-    ColumnDesc('meta_publications', 'publications', '[%s]',
+    ColumnDesc('meta_publications', 'publications', '%s',
       'DOIs of publications'),
-    ColumnDesc('meta_standards', 'standards', '[%s]',
+    ColumnDesc('meta_standards', 'standards', '%s',
       'standards'),
-    ColumnDesc('meta_keywords', 'keywords', '[%s]',
+    ColumnDesc('meta_keywords', 'keywords', '%s',
       'keywords'),
     ColumnDesc('meta_notes', 'notes', '%s',
       'notes'),
@@ -262,7 +262,7 @@ def getContribColDescs():
     ColumnDesc('hostname',   'hostName', '%s',  'hostname'),
     ColumnDesc('topdir',     'topDir',   '%s',  'top dir'),
     ColumnDesc('numkeptdir',  'numKeptDir', '%d', 'num subdirs uploaded'),
-    ColumnDesc('reldirs',    'relDirs',  '[%s]', 'relative upload subdirs'),
+    ColumnDesc('reldirs',    'relDirs',  '%s', 'relative upload subdirs'),
   ]
 
   return columnDescs
@@ -698,7 +698,6 @@ def vwQueryStd( request):
           pageNames.append('%d' % (ii / qlimit + 1,))
         # Get icolMap: dbColName -> icol in queryFields
         icolMap = getIcolMap( descMap, queryFields)
-
         tableHtml = formatTableHtml(
           descMap, icolMap, showFields, colVecs, db_rows)
     except Exception, exc:
